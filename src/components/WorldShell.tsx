@@ -10,6 +10,10 @@ import ProfileCard from "./ProfileCard";
 // Phaser must never render on the server.
 const GameCanvas = dynamic(() => import("@/game/GameCanvas"), { ssr: false });
 
+// Bump on each multiplayer-related deploy so a screenshot reveals the running
+// build (a cached old bundle won't show the current tag).
+const BUILD_TAG = "mp4";
+
 /**
  * The full-screen world experience: the Phaser canvas plus the React overlay
  * (location HUD, proximity/conversation bar, profile card, enter-building toast).
@@ -78,6 +82,9 @@ export default function WorldShell() {
               }`}
             />
             {online} {online === 1 ? "person" : "people"}
+          </div>
+          <div className="mt-0.5 font-mono text-[9px] uppercase tracking-wider opacity-40">
+            {netStatus} · build {BUILD_TAG}
           </div>
         </div>
       </div>
