@@ -12,7 +12,7 @@ const GameCanvas = dynamic(() => import("@/game/GameCanvas"), { ssr: false });
 
 // Bump on each multiplayer-related deploy so a screenshot reveals the running
 // build (a cached old bundle won't show the current tag).
-const BUILD_TAG = "mp4";
+const BUILD_TAG = "voice1";
 
 /**
  * The full-screen world experience: the Phaser canvas plus the React overlay
@@ -26,6 +26,8 @@ export default function WorldShell() {
   const [enterPrompt, setEnterPrompt] = useState<string | null>(null);
   const [online, setOnline] = useState(1);
   const [netStatus, setNetStatus] = useState<"connecting" | "live" | "offline">("connecting");
+  const [voice, setVoice] = useState({ micEnabled: false, micDenied: false, supported: true });
+  const [audible, setAudible] = useState(0);
 
   useEffect(() => {
     const offs = [
@@ -35,6 +37,8 @@ export default function WorldShell() {
       bus.on("person:selected", (p) => setSelected(p)),
       bus.on("presence:count", (c) => setOnline(Math.max(1, c))),
       bus.on("net:status", (s) => setNetStatus(s)),
+      bus.on("voice:status", (s) => setVoice(s)),
+      bus.on("voice:audible", (n) => setAudible(n)),
       bus.on("building:enter", (b) => {
         setEnterPrompt(b.name);
         window.clearTimeout((window as unknown as { __et?: number }).__et);
@@ -88,6 +92,40 @@ export default function WorldShell() {
           </div>
         </div>
       </div>
+
+      {/* Voice / mic control */}
+      {voice.supported && (
+        <div className="absolute bottom-4 left-4 z-30 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              bus.emit(voice.micEnabled ? "voice:disable" : "voice:enable", undefined)
+            }
+            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-lg transition ${
+              voice.micEnabled
+                ? "bg-green-500 text-white hover:bg-green-600"
+                : "bg-ink/85 text-parchment hover:bg-ink"
+            }`}
+            title={
+              voice.micDenied
+                ? "Microphone permission was blocked — enable it in your browser's site settings"
+                : voice.micEnabled
+                  ? "Turn your microphone off"
+                  : "Turn your microphone on to talk to people near you"
+            }
+          >
+            <span>{voice.micEnabled ? "🎙️" : "🔇"}</span>
+            <span>
+              {voice.micDenied ? "Mic blocked" : voice.micEnabled ? "Mic on" : "Enable mic"}
+            </span>
+          </button>
+          {audible > 0 && (
+            <span className="rounded-full bg-ink/85 px-3 py-2 text-xs text-parchment shadow-lg">
+              🔊 hearing {audible} nearby
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Controls hint */}
       <div className="pointer-events-none absolute right-4 bottom-4 z-20 hidden sm:block">

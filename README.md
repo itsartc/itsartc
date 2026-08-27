@@ -31,8 +31,12 @@ desktop browser:
   Hall, Investor Lounge, Coworking House, Builder District, Social Garden, After
   Hours, Event Hall — each anchored by an enterable building with a door.
 - **Proximity is the social mechanic.** Walk near people and an _"In conversation
-  range"_ bar fades in listing who's nearby and their live distance. (This is the
-  seam where WebRTC proximity voice attaches in a later phase.)
+  range"_ bar fades in listing who's nearby and their live distance.
+- **Proximity voice.** Click **Enable mic** and you can *talk* to people as you
+  approach them — each nearby player's voice fades in as you get closer and out
+  as you leave, matching the conversation-range bubble. No "join call" button.
+  Audio is peer-to-peer (WebRTC), signalled over the same realtime backend; mic
+  is strictly opt-in.
 - **Click = information, second click = consequential action.** Clicking an
   avatar opens a professional profile card (name, role, company, location,
   intent, bio, what they're working on / looking for). Connect / Save / View
@@ -127,13 +131,15 @@ This build corresponds to **Phase 0 (technical skeleton)** plus the core of
 first taste of the **Phase 3B** interaction rules (proximity / click / second
 click) using seeded people.
 
-**Now added:** real-time multiplayer presence & position sync (via Supabase
-Realtime — presence for the roster, broadcast for high-frequency movement).
+**Now added:**
+
+- Real-time multiplayer presence & position sync (via Supabase Realtime
+  Broadcast — a join/heartbeat/move/leave protocol drives the live roster).
+- **WebRTC proximity voice** — opt-in mic, peer-to-peer audio signalled over a
+  dedicated Supabase Broadcast channel, volume driven by in-world distance.
 
 Intentionally **not** in this foundation (each is its own phase and deserves its
 own focused work):
-
-- WebRTC proximity **voice**
 - Accounts, onboarding, avatar creator, profiles, privacy & moderation (Phase 2)
 - The **admin world editor** at `/admin/world` (Phase 1H) — the data model is
   built to receive it

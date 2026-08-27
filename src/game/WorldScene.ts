@@ -10,10 +10,13 @@ import {
 } from "./render";
 import { getLocalIdentity, type PlayerIdentity } from "@/net/identity";
 import { joinWorld, type RemotePlayerState } from "@/net/presence";
+import { createVoice, type VoiceManager } from "@/net/voice";
 
 const PLAYER_SPEED = 165;
 const NPC_SPEED = 40;
 const PROXIMITY_TILES = 3.2;
+/** Within this many tiles a peer's voice is at full volume; it fades to 0 at PROXIMITY_TILES. */
+const VOICE_FULL_TILES = 1.0;
 
 interface NpcState {
   seed: PersonSeed;
@@ -45,12 +48,17 @@ export class WorldScene extends Phaser.Scene {
   private lastDistrict: string | null = null;
   private lastEntrance: string | null = null;
   private lastNearKey = "";
+  private lastAudible = -1;
 
   // Networking
   private identity!: PlayerIdentity;
   private remotes = new Map<string, RemotePlayer>();
   private net: { pushMove: (now: number) => void; destroy: () => void } | null = null;
   private lastFlipX = false;
+
+  // Proximity voice
+  private voice: VoiceManager | null = null;
+  private busOffs: Array<() => void> = [];
 
   constructor() {
     super("world");
@@ -117,10 +125,17 @@ export class WorldScene extends Phaser.Scene {
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => this.onPointerDown(p));
 
     this.startNetwork();
+    this.startVoice();
 
-    // Tear the realtime channel down cleanly when the scene ends.
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.net?.destroy());
-    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.net?.destroy());
+    // Tear everything down cleanly when the scene ends.
+    const teardown = () => {
+      this.net?.destroy();
+      this.voice?.destroy();
+      this.busOffs.forEach((off) => off());
+      this.busOffs = [];
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, teardown);
+    this.events.once(Phaser.Scenes.Events.DESTROY, teardown);
 
     bus.emit("world:ready", { name: map.name });
   }
@@ -144,6 +159,21 @@ export class WorldScene extends Phaser.Scene {
     } catch (err) {
       // The world stays fully playable offline if realtime is unavailable.
       console.warn("[itsartc] realtime unavailable:", err);
+    }
+  }
+
+  private startVoice() {
+    try {
+      this.voice = createVoice(this.map.id, this.identity.id, {
+        onStatus: (s) => bus.emit("voice:status", s),
+      });
+      // The React overlay drives the mic on/off (needs a user gesture anyway).
+      this.busOffs.push(
+        bus.on("voice:enable", () => void this.voice?.enableMic()),
+        bus.on("voice:disable", () => this.voice?.disableMic()),
+      );
+    } catch (err) {
+      console.warn("[itsartc] voice unavailable:", err);
     }
   }
 
@@ -188,6 +218,9 @@ export class WorldScene extends Phaser.Scene {
       target: { x: s.x, y: s.y },
       flipX: s.flipX,
     });
+
+    // Open a voice connection to this player (audio stays silent until they're near).
+    this.voice?.addPeer(s.id);
   }
 
   private moveRemote(id: string, x: number, y: number, flipX: boolean) {
@@ -204,6 +237,7 @@ export class WorldScene extends Phaser.Scene {
     r.sprite.destroy();
     r.label.destroy();
     this.remotes.delete(id);
+    this.voice?.removePeer(id);
   }
 
   private updateRemotes() {
@@ -456,8 +490,11 @@ export class WorldScene extends Phaser.Scene {
         n.label.setColor("#ffffff");
       }
     }
-    // Live players count toward conversation range too.
-    for (const r of this.remotes.values()) {
+    // Live players count toward conversation range too, and their voice volume
+    // is driven by the same distance: full within VOICE_FULL_TILES, fading to
+    // silence at PROXIMITY_TILES.
+    let audible = 0;
+    for (const [id, r] of this.remotes) {
       const d = Math.hypot(r.sprite.x - this.player.x, r.sprite.y - this.player.y) / ts;
       if (d <= PROXIMITY_TILES) {
         near.push({ person: r.seed, distanceTiles: Math.round(d * 10) / 10 });
@@ -465,7 +502,20 @@ export class WorldScene extends Phaser.Scene {
       } else {
         r.label.setColor("#ffffff");
       }
+      const vol = Phaser.Math.Clamp(
+        (PROXIMITY_TILES - d) / (PROXIMITY_TILES - VOICE_FULL_TILES),
+        0,
+        1,
+      );
+      if (vol > 0) audible += 1;
+      this.voice?.setPeerVolume(id, vol);
     }
+
+    if (audible !== this.lastAudible) {
+      this.lastAudible = audible;
+      bus.emit("voice:audible", audible);
+    }
+
     near.sort((a, b) => a.distanceTiles - b.distanceTiles);
     const key = near.map((n) => n.person.id).join(",");
     if (key !== this.lastNearKey) {

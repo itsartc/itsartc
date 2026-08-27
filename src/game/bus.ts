@@ -22,6 +22,14 @@ export interface WorldEvents {
   "presence:count": number;
   /** Realtime connection status, for the HUD. */
   "net:status": "connecting" | "live" | "offline";
+  /** UI → world: the player asked to turn their mic on. */
+  "voice:enable": void;
+  /** UI → world: the player asked to turn their mic off. */
+  "voice:disable": void;
+  /** World → UI: current voice/mic state. */
+  "voice:status": { micEnabled: boolean; micDenied: boolean; supported: boolean };
+  /** World → UI: how many nearby peers you can currently hear. */
+  "voice:audible": number;
 }
 
 type Handler<T> = (payload: T) => void;
