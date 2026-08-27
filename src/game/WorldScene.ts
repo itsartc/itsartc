@@ -11,6 +11,7 @@ import {
 import { getLocalIdentity, type PlayerIdentity } from "@/net/identity";
 import { joinWorld, type RemotePlayerState } from "@/net/presence";
 import { createVoice, type VoiceManager } from "@/net/voice";
+import { captureError, logEvent } from "@/observability/monitor";
 
 const PLAYER_SPEED = 165;
 const NPC_SPEED = 40;
@@ -137,6 +138,7 @@ export class WorldScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, teardown);
     this.events.once(Phaser.Scenes.Events.DESTROY, teardown);
 
+    logEvent("world_entered", { world: map.id });
     bus.emit("world:ready", { name: map.name });
   }
 
@@ -158,7 +160,7 @@ export class WorldScene extends Phaser.Scene {
       );
     } catch (err) {
       // The world stays fully playable offline if realtime is unavailable.
-      console.warn("[itsartc] realtime unavailable:", err);
+      captureError(err, { where: "startNetwork" });
     }
   }
 
@@ -174,7 +176,7 @@ export class WorldScene extends Phaser.Scene {
         bus.on("voice:disable", () => this.voice?.disableMic()),
       );
     } catch (err) {
-      console.warn("[itsartc] voice unavailable:", err);
+      captureError(err, { where: "startVoice" });
     }
   }
 

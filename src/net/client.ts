@@ -12,5 +12,12 @@ export const supabase: SupabaseClient =
   globalScope.__itsartcSupabase ??
   (globalScope.__itsartcSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     realtime: { params: { eventsPerSecond: 15 } },
-    auth: { persistSession: false },
+    // Auth foundation (Phase 0): persist + refresh sessions and pick up
+    // magic-link / OAuth callbacks from the URL, ready for Phase 2 accounts.
+    // Guests simply have no session; realtime is unaffected.
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
   }));
