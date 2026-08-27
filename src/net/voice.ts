@@ -1,5 +1,6 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./client";
+import { ICE_SERVERS } from "./config";
 
 /**
  * Proximity voice over WebRTC.
@@ -22,10 +23,6 @@ import { supabase } from "./client";
 
 const CHANNEL_PREFIX = "voice:";
 
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-];
-
 /** WebRTC signalling message, relayed peer→peer over Supabase Broadcast. */
 interface SignalMessage {
   from: string;
@@ -45,10 +42,14 @@ interface Peer {
   polite: boolean;
   /** Target volume (0–1); applied to the audio element. */
   volume: number;
+  /** Whether the WebRTC transport is currently connected (ICE established). */
+  linked: boolean;
 }
 
 export interface VoiceCallbacks {
   onStatus?: (s: { micEnabled: boolean; micDenied: boolean; supported: boolean }) => void;
+  /** Number of peers with a live audio transport (independent of distance). */
+  onLinks?: (count: number) => void;
 }
 
 function isSupported(): boolean {
@@ -94,6 +95,12 @@ export function createVoice(worldId: string, myId: string, cb: VoiceCallbacks = 
     cb.onStatus?.({ micEnabled, micDenied, supported });
   }
 
+  function emitLinks() {
+    let n = 0;
+    for (const p of peers.values()) if (p.linked) n += 1;
+    cb.onLinks?.(n);
+  }
+
   function signal(msg: Omit<SignalMessage, "from">) {
     if (!channel) return;
     void channel.send({
@@ -126,6 +133,21 @@ export function createVoice(worldId: string, myId: string, cb: VoiceCallbacks = 
       makingOffer: false, ignoreOffer: false,
       polite: myId > peerId, // deterministic, opposite on the two ends
       volume: 0,
+      linked: false,
+    };
+
+    pc.onconnectionstatechange = () => {
+      const state = pc.connectionState;
+      const linked = state === "connected";
+      if (linked !== peer.linked) {
+        peer.linked = linked;
+        emitLinks();
+      }
+      if (state === "failed") {
+        // Renegotiate from scratch; the next join/heartbeat re-adds the peer.
+        console.warn("[itsartc] voice connection failed for peer", peerId);
+      }
+      console.log("[itsartc] voice connectionState", { peerId, state });
     };
 
     pc.onnegotiationneeded = async () => {
@@ -213,10 +235,12 @@ export function createVoice(worldId: string, myId: string, cb: VoiceCallbacks = 
     peer.pc.onnegotiationneeded = null;
     peer.pc.onicecandidate = null;
     peer.pc.ontrack = null;
+    peer.pc.onconnectionstatechange = null;
     peer.pc.close();
     peer.audioEl.srcObject = null;
     pendingPlay.delete(peer.audioEl);
     peers.delete(peerId);
+    emitLinks();
   }
 
   /** Distance-driven volume (0–1) for one peer, applied to its audio element. */
@@ -280,6 +304,7 @@ export function createVoice(worldId: string, myId: string, cb: VoiceCallbacks = 
   }
 
   emitStatus();
+  emitLinks();
 
   return { addPeer, removePeer, setPeerVolume, enableMic, disableMic, destroy, supported };
 }

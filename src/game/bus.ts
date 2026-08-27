@@ -30,6 +30,8 @@ export interface WorldEvents {
   "voice:status": { micEnabled: boolean; micDenied: boolean; supported: boolean };
   /** World → UI: how many nearby peers you can currently hear. */
   "voice:audible": number;
+  /** World → UI: how many peers have a live audio transport (independent of distance). */
+  "voice:links": number;
 }
 
 type Handler<T> = (payload: T) => void;

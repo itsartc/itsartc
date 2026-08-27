@@ -12,7 +12,7 @@ const GameCanvas = dynamic(() => import("@/game/GameCanvas"), { ssr: false });
 
 // Bump on each multiplayer-related deploy so a screenshot reveals the running
 // build (a cached old bundle won't show the current tag).
-const BUILD_TAG = "voice1";
+const BUILD_TAG = "voice2-turn";
 
 /**
  * The full-screen world experience: the Phaser canvas plus the React overlay
@@ -28,6 +28,7 @@ export default function WorldShell() {
   const [netStatus, setNetStatus] = useState<"connecting" | "live" | "offline">("connecting");
   const [voice, setVoice] = useState({ micEnabled: false, micDenied: false, supported: true });
   const [audible, setAudible] = useState(0);
+  const [links, setLinks] = useState(0);
 
   useEffect(() => {
     const offs = [
@@ -39,6 +40,7 @@ export default function WorldShell() {
       bus.on("net:status", (s) => setNetStatus(s)),
       bus.on("voice:status", (s) => setVoice(s)),
       bus.on("voice:audible", (n) => setAudible(n)),
+      bus.on("voice:links", (n) => setLinks(n)),
       bus.on("building:enter", (b) => {
         setEnterPrompt(b.name);
         window.clearTimeout((window as unknown as { __et?: number }).__et);
@@ -119,11 +121,15 @@ export default function WorldShell() {
               {voice.micDenied ? "Mic blocked" : voice.micEnabled ? "Mic on" : "Enable mic"}
             </span>
           </button>
-          {audible > 0 && (
+          {audible > 0 ? (
             <span className="rounded-full bg-ink/85 px-3 py-2 text-xs text-parchment shadow-lg">
               🔊 hearing {audible} nearby
             </span>
-          )}
+          ) : links > 0 ? (
+            <span className="rounded-full bg-ink/85 px-3 py-2 text-xs text-parchment/80 shadow-lg">
+              🔗 voice-linked to {links} · walk closer to hear them
+            </span>
+          ) : null}
         </div>
       )}
 

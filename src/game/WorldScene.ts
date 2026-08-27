@@ -166,6 +166,7 @@ export class WorldScene extends Phaser.Scene {
     try {
       this.voice = createVoice(this.map.id, this.identity.id, {
         onStatus: (s) => bus.emit("voice:status", s),
+        onLinks: (n) => bus.emit("voice:links", n),
       });
       // The React overlay drives the mic on/off (needs a user gesture anyway).
       this.busOffs.push(
