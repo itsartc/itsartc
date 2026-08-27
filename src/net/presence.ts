@@ -75,28 +75,24 @@ export function joinWorld(
 
   let lastSent = 0;
   let destroyed = false;
+  let diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * The guest identity ID is also the realtime player ID.
-   *
-   * No separate connection ID is needed because each browser tab/window already
-   * receives its own unique identity via sessionStorage.
    */
   const playerId = me.id;
+  const channelName = `${CHANNEL_PREFIX}${worldId}`;
 
-  const channel: RealtimeChannel = supabase.channel(
-    `${CHANNEL_PREFIX}${worldId}`,
-    {
-      config: {
-        presence: {
-          key: playerId,
-        },
-        broadcast: {
-          self: false,
-        },
+  const channel: RealtimeChannel = supabase.channel(channelName, {
+    config: {
+      presence: {
+        key: playerId,
+      },
+      broadcast: {
+        self: false,
       },
     },
-  );
+  });
 
   channel
     .on("presence", { event: "sync" }, () => {
@@ -105,7 +101,7 @@ export function joinWorld(
       console.log("[itsartc] presence sync", {
         playerId,
         worldId,
-        channelName: `${CHANNEL_PREFIX}${worldId}`,
+        channelName,
         state,
         keys: Object.keys(state),
       });
@@ -137,6 +133,26 @@ export function joinWorld(
       cb.onCount(ids.size);
     })
 
+    .on("presence", { event: "join" }, ({ key, newPresences }) => {
+      console.log("[itsartc] presence join event", {
+        playerId,
+        worldId,
+        channelName,
+        key,
+        newPresences,
+      });
+    })
+
+    .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+      console.log("[itsartc] presence leave event", {
+        playerId,
+        worldId,
+        channelName,
+        key,
+        leftPresences,
+      });
+    })
+
     .on("broadcast", { event: "move" }, ({ payload }) => {
       const move = payload as MoveUpdate;
 
@@ -153,6 +169,7 @@ export function joinWorld(
       console.log("[itsartc] realtime subscribe status", {
         playerId,
         worldId,
+        channelName,
         status,
         error: err ?? null,
       });
@@ -162,12 +179,6 @@ export function joinWorld(
 
         const pos = getPosition();
 
-        /**
-         * Track the player's complete identity + initial position.
-         *
-         * me.id is already playerId, so we keep one canonical ID all the way
-         * through the realtime layer.
-         */
         const trackPayload: RemotePlayerState = {
           ...me,
           id: playerId,
@@ -179,6 +190,7 @@ export function joinWorld(
         console.log("[itsartc] tracking presence", {
           playerId,
           worldId,
+          channelName,
           trackPayload,
         });
 
@@ -187,8 +199,30 @@ export function joinWorld(
         console.log("[itsartc] track result", {
           playerId,
           worldId,
+          channelName,
           trackResult,
         });
+
+        /**
+         * Diagnostic only:
+         * after Supabase has had a moment to process the track call, inspect the
+         * local Presence state directly even if no sync event was emitted.
+         */
+        diagnosticTimer = setTimeout(() => {
+          if (destroyed) {
+            return;
+          }
+
+          const delayedState = channel.presenceState<RemotePlayerState>();
+
+          console.log("[itsartc] delayed presence state", {
+            playerId,
+            worldId,
+            channelName,
+            state: delayedState,
+            keys: Object.keys(delayedState),
+          });
+        }, 1500);
       } else if (
         status === "CHANNEL_ERROR" ||
         status === "TIMED_OUT" ||
@@ -240,6 +274,12 @@ export function joinWorld(
     }
 
     destroyed = true;
+
+    if (diagnosticTimer) {
+      clearTimeout(diagnosticTimer);
+      diagnosticTimer = null;
+    }
+
     supabase.removeChannel(channel);
   }
 
