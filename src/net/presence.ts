@@ -60,14 +60,14 @@ const CHANNEL_PREFIX = "world:";
 /** ~12 movement packets/sec. */
 const MOVE_INTERVAL_MS = 80;
 
-/** Announce ourselves every few seconds so late joiners discover us. */
-const HEARTBEAT_INTERVAL_MS = 3000;
+/** Announce ourselves every 2 seconds so peers stay fresh and late joiners find us quickly. */
+const HEARTBEAT_INTERVAL_MS = 2000;
 
-/** Remove a peer if we haven't heard from them in this long. */
-const REMOTE_TIMEOUT_MS = 10000;
+/** Remove a peer if we haven't heard from them for 5 seconds. */
+const REMOTE_TIMEOUT_MS = 5000;
 
-/** Check for stale players periodically. */
-const CLEANUP_INTERVAL_MS = 2000;
+/** Check for stale players once per second. */
+const CLEANUP_INTERVAL_MS = 1000;
 
 /**
  * Joins the realtime channel for a world.
@@ -82,8 +82,9 @@ const CLEANUP_INTERVAL_MS = 2000;
  *   Sent when this client joins.
  *
  * heartbeat
- *   Sent every few seconds with the player's full current state.
- *   This lets late joiners discover players who were already online.
+ *   Sent every 2 seconds with the player's full current state.
+ *   This lets late joiners discover players who were already online and keeps
+ *   active players from being treated as stale.
  *
  * move
  *   Sent frequently with lightweight position updates.
@@ -238,7 +239,6 @@ export function joinWorld(
       registerRemote(state);
 
       /**
-       * Important:
        * If another player joins after us, immediately answer with our current
        * state so they don't have to wait for the next heartbeat.
        */
@@ -326,29 +326,27 @@ export function joinWorld(
 
         joined = true;
 
-        /**
-         * Count ourselves immediately.
-         */
+        /** Count ourselves immediately. */
         updateCount();
 
-        /**
-         * Announce that this player has entered the world.
-         */
+        /** Announce that this player has entered the world. */
         await sendJoin();
 
         /**
-         * Heartbeats perform two jobs:
+         * Heartbeat every 2 seconds.
          *
-         * 1. Keep existing peers marked alive.
-         * 2. Allow late joiners to discover players who were already online.
+         * This keeps peers fresh and lets late joiners discover players who were
+         * already online.
          */
         heartbeatTimer = setInterval(() => {
           void sendHeartbeat();
         }, HEARTBEAT_INTERVAL_MS);
 
         /**
-         * Remove abandoned/disconnected peers if their explicit leave packet was
-         * never delivered.
+         * Check once per second for peers that have stopped sending data.
+         *
+         * A remote player is considered gone after 5 seconds without a move,
+         * heartbeat, or other state update.
          */
         cleanupTimer = setInterval(() => {
           if (destroyed) {
@@ -356,15 +354,19 @@ export function joinWorld(
           }
 
           const now = Date.now();
+          let changed = false;
 
           for (const [id, remote] of Array.from(remotes.entries())) {
             if (now - remote.lastSeen > REMOTE_TIMEOUT_MS) {
               remotes.delete(id);
               cb.onLeave(id);
+              changed = true;
             }
           }
 
-          updateCount();
+          if (changed) {
+            updateCount();
+          }
         }, CLEANUP_INTERVAL_MS);
       } else if (
         status === "CHANNEL_ERROR" ||
@@ -433,8 +435,8 @@ export function joinWorld(
     /**
      * Best-effort explicit departure.
      *
-     * Heartbeat timeout also protects us if the browser closes too abruptly for
-     * this packet to make it out.
+     * If the browser closes too abruptly for this packet to arrive, the
+     * remaining clients will remove this player after roughly 5 seconds.
      */
     void sendLeave().finally(() => {
       supabase.removeChannel(channel);
