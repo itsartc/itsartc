@@ -54,8 +54,17 @@ export function joinWorld(
   let lastSent = 0;
   let destroyed = false;
 
+  // A per-connection id, distinct from the persistent persona id. Two tabs of
+  // the same browser share one persona (localStorage) but each get their own
+  // connection, so they appear as two live participants and see each other
+  // move. This is also the roster key and the self-filter key.
+  const connId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `conn-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+
   const channel: RealtimeChannel = supabase.channel(`${CHANNEL_PREFIX}${worldId}`, {
-    config: { presence: { key: me.id }, broadcast: { self: false } },
+    config: { presence: { key: connId }, broadcast: { self: false } },
   });
 
   channel
@@ -65,7 +74,7 @@ export function joinWorld(
 
       // New peers → join
       for (const id of ids) {
-        if (id === me.id || known.has(id)) continue;
+        if (id === connId || known.has(id)) continue;
         const meta = state[id]?.[0];
         if (meta) {
           known.add(id);
@@ -83,12 +92,13 @@ export function joinWorld(
     })
     .on("broadcast", { event: "move" }, ({ payload }) => {
       const m = payload as MoveUpdate;
-      if (m && m.id !== me.id) cb.onMove(m);
+      if (m && m.id !== connId) cb.onMove(m);
     })
     .subscribe(async (status) => {
       if (status === "SUBSCRIBED" && !destroyed) {
         const pos = getPosition();
-        await channel.track({ ...me, x: pos.x, y: pos.y, flipX: pos.flipX });
+        // The roster keys players by connId, so the wire `id` is the connId.
+        await channel.track({ ...me, id: connId, x: pos.x, y: pos.y, flipX: pos.flipX });
       }
     });
 
@@ -100,7 +110,7 @@ export function joinWorld(
     channel.send({
       type: "broadcast",
       event: "move",
-      payload: { id: me.id, x: Math.round(pos.x), y: Math.round(pos.y), flipX: pos.flipX },
+      payload: { id: connId, x: Math.round(pos.x), y: Math.round(pos.y), flipX: pos.flipX },
     });
   }
 
