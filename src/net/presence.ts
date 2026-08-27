@@ -101,6 +101,15 @@ export function joinWorld(
   channel
     .on("presence", { event: "sync" }, () => {
       const state = channel.presenceState<RemotePlayerState>();
+
+      console.log("[itsartc] presence sync", {
+        playerId,
+        worldId,
+        channelName: `${CHANNEL_PREFIX}${worldId}`,
+        state,
+        keys: Object.keys(state),
+      });
+
       const ids = new Set(Object.keys(state));
 
       // New peers → join
@@ -141,6 +150,13 @@ export function joinWorld(
         return;
       }
 
+      console.log("[itsartc] realtime subscribe status", {
+        playerId,
+        worldId,
+        status,
+        error: err ?? null,
+      });
+
       if (status === "SUBSCRIBED") {
         cb.onStatus?.("live");
 
@@ -152,12 +168,26 @@ export function joinWorld(
          * me.id is already playerId, so we keep one canonical ID all the way
          * through the realtime layer.
          */
-        await channel.track({
+        const trackPayload: RemotePlayerState = {
           ...me,
           id: playerId,
           x: pos.x,
           y: pos.y,
           flipX: pos.flipX,
+        };
+
+        console.log("[itsartc] tracking presence", {
+          playerId,
+          worldId,
+          trackPayload,
+        });
+
+        const trackResult = await channel.track(trackPayload);
+
+        console.log("[itsartc] track result", {
+          playerId,
+          worldId,
+          trackResult,
         });
       } else if (
         status === "CHANNEL_ERROR" ||
