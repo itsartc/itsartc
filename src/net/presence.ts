@@ -20,6 +20,24 @@ export interface MoveUpdate {
   flipX: boolean;
 }
 
+interface JoinMessage extends RemotePlayerState {
+  type: "player_join";
+}
+
+interface HeartbeatMessage extends RemotePlayerState {
+  type: "heartbeat";
+}
+
+interface LeaveMessage {
+  type: "player_leave";
+  id: string;
+}
+
+interface RemoteRecord {
+  state: RemotePlayerState;
+  lastSeen: number;
+}
+
 export interface PresenceCallbacks {
   /** A peer appeared (or re-synced) with their identity + initial position. */
   onJoin: (state: RemotePlayerState) => void;
@@ -38,32 +56,40 @@ export interface PresenceCallbacks {
 }
 
 const CHANNEL_PREFIX = "world:";
-const MOVE_INTERVAL_MS = 80; // ~12 position updates/sec
+
+/** ~12 movement packets/sec. */
+const MOVE_INTERVAL_MS = 80;
+
+/** Announce ourselves every few seconds so late joiners discover us. */
+const HEARTBEAT_INTERVAL_MS = 3000;
+
+/** Remove a peer if we haven't heard from them in this long. */
+const REMOTE_TIMEOUT_MS = 10000;
+
+/** Check for stale players periodically. */
+const CLEANUP_INTERVAL_MS = 2000;
 
 /**
- * Joins the realtime channel for a world and bridges Supabase Realtime to the
- * game.
+ * Joins the realtime channel for a world.
  *
- * One canonical ID is used for the player everywhere:
+ * This implementation intentionally uses Supabase Broadcast only.
  *
- *   me.id
- *     ↓
- * Presence key
- *     ↓
- * Presence state id
- *     ↓
- * Broadcast movement id
- *     ↓
- * Remote player id
+ * Supabase Presence is currently not relied upon for the roster.
  *
- * Because guest identities are stored in sessionStorage, each browser tab/window
- * receives a different me.id and therefore appears as a separate multiplayer
- * participant.
+ * Protocol:
  *
- * Two transports are used:
+ * player_join
+ *   Sent when this client joins.
  *
- * - Presence carries identity and join/leave state.
- * - Broadcast carries high-frequency movement updates.
+ * heartbeat
+ *   Sent every few seconds with the player's full current state.
+ *   This lets late joiners discover players who were already online.
+ *
+ * move
+ *   Sent frequently with lightweight position updates.
+ *
+ * player_leave
+ *   Sent when the page/scene shuts down cleanly.
  */
 export function joinWorld(
   worldId: string,
@@ -71,94 +97,210 @@ export function joinWorld(
   getPosition: () => { x: number; y: number; flipX: boolean },
   cb: PresenceCallbacks,
 ) {
-  const known = new Set<string>();
-
-  let lastSent = 0;
-  let destroyed = false;
-  let diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
-
-  /**
-   * The guest identity ID is also the realtime player ID.
-   */
   const playerId = me.id;
   const channelName = `${CHANNEL_PREFIX}${worldId}`;
 
+  const remotes = new Map<string, RemoteRecord>();
+
+  let lastMoveSent = 0;
+  let destroyed = false;
+  let joined = false;
+
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
   const channel: RealtimeChannel = supabase.channel(channelName, {
     config: {
-      presence: {
-        key: playerId,
-        enabled: true,
-      },
       broadcast: {
         self: false,
       },
     },
   });
 
+  function currentState(): RemotePlayerState {
+    const pos = getPosition();
+
+    return {
+      ...me,
+      id: playerId,
+      x: Math.round(pos.x),
+      y: Math.round(pos.y),
+      flipX: pos.flipX,
+    };
+  }
+
+  function updateCount() {
+    cb.onCount(remotes.size + 1);
+  }
+
+  function registerRemote(state: RemotePlayerState) {
+    if (!state || !state.id || state.id === playerId) {
+      return;
+    }
+
+    const existing = remotes.get(state.id);
+
+    remotes.set(state.id, {
+      state,
+      lastSeen: Date.now(),
+    });
+
+    if (!existing) {
+      cb.onJoin(state);
+      updateCount();
+    }
+  }
+
+  function touchRemote(
+    id: string,
+    update?: Partial<RemotePlayerState>,
+  ) {
+    if (!id || id === playerId) {
+      return;
+    }
+
+    const existing = remotes.get(id);
+
+    if (!existing) {
+      return;
+    }
+
+    if (update) {
+      existing.state = {
+        ...existing.state,
+        ...update,
+        id,
+      };
+    }
+
+    existing.lastSeen = Date.now();
+  }
+
+  async function sendJoin() {
+    if (destroyed) {
+      return;
+    }
+
+    const payload: JoinMessage = {
+      type: "player_join",
+      ...currentState(),
+    };
+
+    await channel.send({
+      type: "broadcast",
+      event: "player_join",
+      payload,
+    });
+  }
+
+  async function sendHeartbeat() {
+    if (destroyed) {
+      return;
+    }
+
+    const payload: HeartbeatMessage = {
+      type: "heartbeat",
+      ...currentState(),
+    };
+
+    await channel.send({
+      type: "broadcast",
+      event: "heartbeat",
+      payload,
+    });
+  }
+
+  async function sendLeave() {
+    const payload: LeaveMessage = {
+      type: "player_leave",
+      id: playerId,
+    };
+
+    try {
+      await channel.send({
+        type: "broadcast",
+        event: "player_leave",
+        payload,
+      });
+    } catch {
+      // Best effort only.
+    }
+  }
+
   channel
-    .on("presence", { event: "sync" }, () => {
-      const state = channel.presenceState<RemotePlayerState>();
+    .on("broadcast", { event: "player_join" }, ({ payload }) => {
+      const state = payload as JoinMessage;
 
-      console.log("[itsartc] presence sync", {
-        playerId,
-        worldId,
-        channelName,
-        state,
-        keys: Object.keys(state),
-      });
-
-      const ids = new Set(Object.keys(state));
-
-      // New peers → join
-      for (const id of ids) {
-        if (id === playerId || known.has(id)) {
-          continue;
-        }
-
-        const meta = state[id]?.[0];
-
-        if (meta) {
-          known.add(id);
-          cb.onJoin(meta);
-        }
+      if (!state || state.id === playerId) {
+        return;
       }
 
-      // Departed peers → leave
-      for (const id of Array.from(known)) {
-        if (!ids.has(id)) {
-          known.delete(id);
-          cb.onLeave(id);
-        }
+      registerRemote(state);
+
+      /**
+       * Important:
+       * If another player joins after us, immediately answer with our current
+       * state so they don't have to wait for the next heartbeat.
+       */
+      void sendHeartbeat();
+    })
+
+    .on("broadcast", { event: "heartbeat" }, ({ payload }) => {
+      const state = payload as HeartbeatMessage;
+
+      if (!state || state.id === playerId) {
+        return;
       }
 
-      cb.onCount(ids.size);
-    })
+      const existing = remotes.get(state.id);
 
-    .on("presence", { event: "join" }, ({ key, newPresences }) => {
-      console.log("[itsartc] presence join event", {
-        playerId,
-        worldId,
-        channelName,
-        key,
-        newPresences,
-      });
-    })
+      if (!existing) {
+        registerRemote(state);
+        return;
+      }
 
-    .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
-      console.log("[itsartc] presence leave event", {
-        playerId,
-        worldId,
-        channelName,
-        key,
-        leftPresences,
-      });
+      touchRemote(state.id, state);
     })
 
     .on("broadcast", { event: "move" }, ({ payload }) => {
       const move = payload as MoveUpdate;
 
-      if (move && move.id !== playerId) {
-        cb.onMove(move);
+      if (!move || move.id === playerId) {
+        return;
+      }
+
+      /**
+       * Only forward movement if we already know this remote player.
+       *
+       * Their join/heartbeat packet carries the full identity needed to create
+       * the sprite.
+       */
+      const existing = remotes.get(move.id);
+
+      if (!existing) {
+        return;
+      }
+
+      touchRemote(move.id, {
+        x: move.x,
+        y: move.y,
+        flipX: move.flipX,
+      });
+
+      cb.onMove(move);
+    })
+
+    .on("broadcast", { event: "player_leave" }, ({ payload }) => {
+      const leave = payload as LeaveMessage;
+
+      if (!leave || !leave.id || leave.id === playerId) {
+        return;
+      }
+
+      if (remotes.has(leave.id)) {
+        remotes.delete(leave.id);
+        cb.onLeave(leave.id);
+        updateCount();
       }
     })
 
@@ -178,53 +320,52 @@ export function joinWorld(
       if (status === "SUBSCRIBED") {
         cb.onStatus?.("live");
 
-        const pos = getPosition();
+        if (joined) {
+          return;
+        }
 
-        const trackPayload: RemotePlayerState = {
-          ...me,
-          id: playerId,
-          x: pos.x,
-          y: pos.y,
-          flipX: pos.flipX,
-        };
-
-        console.log("[itsartc] tracking presence", {
-          playerId,
-          worldId,
-          channelName,
-          trackPayload,
-        });
-
-        const trackResult = await channel.track(trackPayload);
-
-        console.log("[itsartc] track result", {
-          playerId,
-          worldId,
-          channelName,
-          trackResult,
-        });
+        joined = true;
 
         /**
-         * Diagnostic only:
-         * Give Supabase a moment after track(), then inspect the Presence state
-         * directly even if no sync event has fired.
+         * Count ourselves immediately.
          */
-        diagnosticTimer = setTimeout(() => {
+        updateCount();
+
+        /**
+         * Announce that this player has entered the world.
+         */
+        await sendJoin();
+
+        /**
+         * Heartbeats perform two jobs:
+         *
+         * 1. Keep existing peers marked alive.
+         * 2. Allow late joiners to discover players who were already online.
+         */
+        heartbeatTimer = setInterval(() => {
+          void sendHeartbeat();
+        }, HEARTBEAT_INTERVAL_MS);
+
+        /**
+         * Remove abandoned/disconnected peers if their explicit leave packet was
+         * never delivered.
+         */
+        cleanupTimer = setInterval(() => {
           if (destroyed) {
             return;
           }
 
-          const delayedState =
-            channel.presenceState<RemotePlayerState>();
+          const now = Date.now();
 
-          console.log("[itsartc] delayed presence state", {
-            playerId,
-            worldId,
-            channelName,
-            state: delayedState,
-            keys: Object.keys(delayedState),
-          });
-        }, 1500);
+          for (const [id, remote] of Array.from(remotes.entries())) {
+            if (now - remote.lastSeen > REMOTE_TIMEOUT_MS) {
+              remotes.delete(id);
+              cb.onLeave(id);
+            }
+          }
+
+          updateCount();
+        }, CLEANUP_INTERVAL_MS);
       } else if (
         status === "CHANNEL_ERROR" ||
         status === "TIMED_OUT" ||
@@ -243,22 +384,24 @@ export function joinWorld(
   cb.onStatus?.("connecting");
 
   /**
-   * Call frequently (e.g. every game frame).
-   * Movement broadcasts are throttled internally.
+   * Called from the Phaser update loop.
+   *
+   * Broadcast only lightweight position data here.
    */
   function pushMove(now: number) {
     if (
       destroyed ||
-      now - lastSent < MOVE_INTERVAL_MS
+      !joined ||
+      now - lastMoveSent < MOVE_INTERVAL_MS
     ) {
       return;
     }
 
-    lastSent = now;
+    lastMoveSent = now;
 
     const pos = getPosition();
 
-    channel.send({
+    void channel.send({
       type: "broadcast",
       event: "move",
       payload: {
@@ -266,7 +409,7 @@ export function joinWorld(
         x: Math.round(pos.x),
         y: Math.round(pos.y),
         flipX: pos.flipX,
-      },
+      } satisfies MoveUpdate,
     });
   }
 
@@ -277,12 +420,25 @@ export function joinWorld(
 
     destroyed = true;
 
-    if (diagnosticTimer) {
-      clearTimeout(diagnosticTimer);
-      diagnosticTimer = null;
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
     }
 
-    supabase.removeChannel(channel);
+    if (cleanupTimer) {
+      clearInterval(cleanupTimer);
+      cleanupTimer = null;
+    }
+
+    /**
+     * Best-effort explicit departure.
+     *
+     * Heartbeat timeout also protects us if the browser closes too abruptly for
+     * this packet to make it out.
+     */
+    void sendLeave().finally(() => {
+      supabase.removeChannel(channel);
+    });
   }
 
   return {
