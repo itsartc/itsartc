@@ -12,6 +12,8 @@ is built around live professional serendipity:
 This repository is the **foundation build**. It delivers the first milestone of
 the product roadmap — _"Phase 1: We have a world."_ — as a runnable app.
 
+**Live:** https://itsartc-app.vercel.app — auto-deployed from this branch on every push.
+
 ---
 
 ## What's built so far
