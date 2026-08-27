@@ -87,6 +87,7 @@ export function joinWorld(
     config: {
       presence: {
         key: playerId,
+        enabled: true,
       },
       broadcast: {
         self: false,
@@ -205,15 +206,16 @@ export function joinWorld(
 
         /**
          * Diagnostic only:
-         * after Supabase has had a moment to process the track call, inspect the
-         * local Presence state directly even if no sync event was emitted.
+         * Give Supabase a moment after track(), then inspect the Presence state
+         * directly even if no sync event has fired.
          */
         diagnosticTimer = setTimeout(() => {
           if (destroyed) {
             return;
           }
 
-          const delayedState = channel.presenceState<RemotePlayerState>();
+          const delayedState =
+            channel.presenceState<RemotePlayerState>();
 
           console.log("[itsartc] delayed presence state", {
             playerId,
