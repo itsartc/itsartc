@@ -1,0 +1,139 @@
+# itsartc — a live professional world
+
+A desktop-first, browser-based **live professional networking world** with cozy,
+top-down 2D pixel graphics inspired by classic Pokémon-era RPGs.
+
+Instead of _search → profile → connection request → message → wait_, this product
+is built around live professional serendipity:
+
+> **Enter the world → wander → discover people → walk toward them → join the
+> conversation → connect → keep exploring.**
+
+This repository is the **foundation build**. It delivers the first milestone of
+the product roadmap — _"Phase 1: We have a world."_ — as a runnable app.
+
+---
+
+## What's built so far
+
+A single connected world, **Town Central**, that you can walk around in a
+desktop browser:
+
+- **Top-down 2D world engine** (Phaser 3): tile grid, terrain (grass, paths,
+  plaza, water, sand), buildings, reusable objects, collision, camera-follow
+  with zoom.
+- **All three movement methods at once**, exactly as the product requires:
+  **click-to-walk**, **arrow keys**, and **WASD**. Keyboard input instantly
+  overrides click-to-walk.
+- **Districts as real places** — Town Square, Founder Café, AI District, Hiring
+  Hall, Investor Lounge, Coworking House, Builder District, Social Garden, After
+  Hours, Event Hall — each anchored by an enterable building with a door.
+- **Proximity is the social mechanic.** Walk near people and an _"In conversation
+  range"_ bar fades in listing who's nearby and their live distance. (This is the
+  seam where WebRTC proximity voice attaches in a later phase.)
+- **Click = information, second click = consequential action.** Clicking an
+  avatar opens a professional profile card (name, role, company, location,
+  intent, bio, what they're working on / looking for). Connect / Save / View
+  Profile / Block / Report each require a deliberate second click — a click on a
+  person never sends a request.
+- **Intent status signals** (🟢 Open to chat · 💰 Raising · 👥 Hiring · 🔎 Open
+  to work · 🤝 Cofounder · 💡 Feedback · 👀 Exploring · 🔴 Busy).
+- **Advertising & sponsorship hooks baked into the world data** (billboards,
+  banners, screens, sponsor + capacity metadata on buildings) — no billing yet,
+  just the inventory model.
+
+The people in the world are currently **seeded NPCs** that demonstrate the
+proximity + profile interaction model. Real, network-synchronised players are a
+later phase (see the roadmap).
+
+### Architectural cornerstone: the world is data, not code
+
+The entire world is **structured data** (`src/world/`), never a static image or
+hardcoded engine coordinates. Terrain, districts, buildings, entrances,
+interiors, objects, collision, spawn points, ad slots, event/voice zones and
+seeded people are all declarative. This is deliberate: it's what will let an
+admin world editor mutate the world **without touching source code** — a major
+requirement of the product.
+
+```
+src/world/schema.ts        # the world data model (types + intent metadata)
+src/world/townCentral.ts   # the launch world, authored as data
+```
+
+The renderer is a "dumb" interpreter of that data.
+
+---
+
+## Tech stack
+
+| Layer            | Choice                                            |
+| ---------------- | ------------------------------------------------- |
+| Language         | TypeScript                                        |
+| App / UI         | Next.js (App Router) + React + Tailwind CSS       |
+| 2D world         | Phaser 3 (loaded only on `/world`, client-only)   |
+| World data       | Plain typed data modules (DB-backed in a later phase) |
+
+Placeholder pixel art is **generated in code** (no binary assets yet), so the
+world runs today; real sprite sheets and tilesets drop in behind the same data
+model later.
+
+```
+app/                 # Next.js routes: / (landing), /world (the world)
+src/components/       # React overlay: WorldShell, ProfileCard
+src/game/            # Phaser: GameCanvas, WorldScene, render helpers, event bus
+src/world/           # The world data model + authored world
+```
+
+---
+
+## Running locally
+
+```bash
+npm install
+npm run dev      # http://localhost:3000  → click "Enter the world"
+```
+
+Other scripts:
+
+```bash
+npm run build      # production build
+npm run start      # serve the production build
+npm run typecheck  # tsc --noEmit
+```
+
+**Controls:** click anywhere to walk · WASD or arrow keys to move · walk up to
+someone to enter conversation range · click a person to open their profile.
+
+> Dev/test note: append `?renderer=canvas` to the `/world` URL to force Phaser's
+> Canvas renderer instead of WebGL. Useful in headless/CI environments where
+> WebGL context creation is unreliable.
+
+---
+
+## How this maps to the product roadmap
+
+This build corresponds to **Phase 0 (technical skeleton)** plus the core of
+**Phase 1A–1E** (world engine, geography, categories, building system) and a
+first taste of the **Phase 3B** interaction rules (proximity / click / second
+click) using seeded people.
+
+Intentionally **not** in this foundation (each is its own phase and deserves its
+own focused work):
+
+- Real-time multiplayer presence & position sync (WebSockets)
+- WebRTC proximity **voice**
+- Accounts, onboarding, avatar creator, profiles, privacy & moderation (Phase 2)
+- The **admin world editor** at `/admin/world` (Phase 1H) — the data model is
+  built to receive it
+- Interior maps for enterable buildings (Phase 1F) — entering currently shows a
+  toast; metadata + entrances already exist
+- World publishing/versioning, analytics, discovery intelligence, instancing &
+  scale, monetization (Phases 1K, 4–7)
+
+---
+
+## Known notes
+
+- A build-time `postcss` advisory remains because it's bundled inside Next.js 14;
+  clearing it fully requires the Next 16 major upgrade. It does not affect
+  runtime. Worth doing as a follow-up.
