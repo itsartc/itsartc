@@ -20,6 +20,8 @@ export interface WorldEvents {
   "world:ready": { name: string };
   /** Number of live players currently in the world (including you). */
   "presence:count": number;
+  /** Realtime connection status, for the HUD. */
+  "net:status": "connecting" | "live" | "offline";
 }
 
 type Handler<T> = (payload: T) => void;

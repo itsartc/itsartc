@@ -138,6 +138,7 @@ export class WorldScene extends Phaser.Scene {
           onMove: (m) => this.moveRemote(m.id, m.x, m.y, m.flipX),
           onLeave: (id) => this.removeRemote(id),
           onCount: (c) => bus.emit("presence:count", c),
+          onStatus: (s) => bus.emit("net:status", s),
         },
       );
     } catch (err) {

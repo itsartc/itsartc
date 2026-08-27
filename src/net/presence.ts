@@ -28,6 +28,8 @@ export interface PresenceCallbacks {
   onLeave: (id: string) => void;
   /** Total players online (including self) changed. */
   onCount: (count: number) => void;
+  /** Realtime connection lifecycle, for surfacing status in the UI. */
+  onStatus?: (status: "connecting" | "live" | "offline") => void;
 }
 
 const CHANNEL_PREFIX = "world:";
@@ -94,13 +96,20 @@ export function joinWorld(
       const m = payload as MoveUpdate;
       if (m && m.id !== connId) cb.onMove(m);
     })
-    .subscribe(async (status) => {
-      if (status === "SUBSCRIBED" && !destroyed) {
+    .subscribe(async (status, err) => {
+      if (destroyed) return;
+      if (status === "SUBSCRIBED") {
+        cb.onStatus?.("live");
         const pos = getPosition();
         // The roster keys players by connId, so the wire `id` is the connId.
         await channel.track({ ...me, id: connId, x: pos.x, y: pos.y, flipX: pos.flipX });
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        console.warn("[itsartc] realtime status:", status, err ?? "");
+        cb.onStatus?.("offline");
       }
     });
+
+  cb.onStatus?.("connecting");
 
   /** Call frequently (e.g. every frame); it self-throttles. */
   function pushMove(now: number) {

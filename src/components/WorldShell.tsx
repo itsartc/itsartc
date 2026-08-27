@@ -21,6 +21,7 @@ export default function WorldShell() {
   const [selected, setSelected] = useState<PersonSeed | null>(null);
   const [enterPrompt, setEnterPrompt] = useState<string | null>(null);
   const [online, setOnline] = useState(1);
+  const [netStatus, setNetStatus] = useState<"connecting" | "live" | "offline">("connecting");
 
   useEffect(() => {
     const offs = [
@@ -29,6 +30,7 @@ export default function WorldShell() {
       bus.on("proximity:update", (n) => setNear(n)),
       bus.on("person:selected", (p) => setSelected(p)),
       bus.on("presence:count", (c) => setOnline(Math.max(1, c))),
+      bus.on("net:status", (s) => setNetStatus(s)),
       bus.on("building:enter", (b) => {
         setEnterPrompt(b.name);
         window.clearTimeout((window as unknown as { __et?: number }).__et);
@@ -62,9 +64,19 @@ export default function WorldShell() {
           <div className="font-semibold">{district}</div>
         </div>
         <div className="rounded-lg bg-ink/85 px-3 py-2 text-parchment shadow-lg">
-          <div className="text-[10px] uppercase tracking-widest opacity-60">Live now</div>
+          <div className="text-[10px] uppercase tracking-widest opacity-60">
+            {netStatus === "live" ? "Live now" : netStatus === "connecting" ? "Connecting" : "Offline"}
+          </div>
           <div className="flex items-center gap-1.5 font-semibold">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-400" />
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${
+                netStatus === "live"
+                  ? "animate-pulse bg-green-400"
+                  : netStatus === "connecting"
+                    ? "animate-pulse bg-amber-400"
+                    : "bg-red-500"
+              }`}
+            />
             {online} {online === 1 ? "person" : "people"}
           </div>
         </div>
