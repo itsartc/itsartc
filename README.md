@@ -32,11 +32,19 @@ desktop browser:
   Hours, Event Hall — each anchored by an enterable building with a door.
 - **Proximity is the social mechanic.** Walk near people and an _"In conversation
   range"_ bar fades in listing who's nearby and their live distance.
-- **Proximity voice.** Click **Enable mic** and you can *talk* to people as you
-  approach them — each nearby player's voice fades in as you get closer and out
-  as you leave, matching the conversation-range bubble. No "join call" button.
-  Audio is peer-to-peer (WebRTC), signalled over the same realtime backend; mic
-  is strictly opt-in.
+- **Proximity voice (desktop).** Click **Enable mic** and you can *talk* to
+  people as you approach them — each nearby player's voice fades in as you get
+  closer and out as you leave, matching the conversation-range bubble. No "join
+  call" button. Audio is peer-to-peer (WebRTC), signalled over the same realtime
+  backend; mic is strictly opt-in.
+  - **Scope:** the product is desktop-first, and proximity voice is complete and
+    supported on **desktop browsers**. iPhone/iOS voice interop is intentionally
+    **out of scope** for now (not supported or tested) — mobile is not a launch
+    target.
+  - **Production note:** reliable voice across *different* networks needs a TURN
+    relay. The default is a free public relay for testing; set the
+    `NEXT_PUBLIC_TURN_*` env vars to your own TURN credentials (e.g. a free
+    Metered key, or self-hosted coturn) before relying on it publicly.
 - **Click = information, second click = consequential action.** Clicking an
   avatar opens a professional profile card (name, role, company, location,
   intent, bio, what they're working on / looking for). Connect / Save / View
