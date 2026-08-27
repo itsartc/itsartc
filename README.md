@@ -44,9 +44,17 @@ desktop browser:
   banners, screens, sponsor + capacity metadata on buildings) — no billing yet,
   just the inventory model.
 
-The people in the world are currently **seeded NPCs** that demonstrate the
-proximity + profile interaction model. Real, network-synchronised players are a
-later phase (see the roadmap).
+- **Live multiplayer presence.** Real people share the world in real time
+  (Supabase Realtime). Open the app in two browsers and you'll see each other
+  move, walk into conversation range, and click each other's profiles. A **Live
+  now** counter shows how many people are in the world. Each visitor is given a
+  stable "guest" identity (name, role, intent, avatar colours) until accounts
+  arrive — shaped exactly like the eventual account profile, so the networking
+  layer won't change when accounts land.
+
+Alongside live players, the world also contains **seeded NPCs** that keep it
+feeling populated and demonstrate the proximity + profile model even when you're
+the only human online.
 
 ### Architectural cornerstone: the world is data, not code
 
@@ -119,10 +127,12 @@ This build corresponds to **Phase 0 (technical skeleton)** plus the core of
 first taste of the **Phase 3B** interaction rules (proximity / click / second
 click) using seeded people.
 
+**Now added:** real-time multiplayer presence & position sync (via Supabase
+Realtime — presence for the roster, broadcast for high-frequency movement).
+
 Intentionally **not** in this foundation (each is its own phase and deserves its
 own focused work):
 
-- Real-time multiplayer presence & position sync (WebSockets)
 - WebRTC proximity **voice**
 - Accounts, onboarding, avatar creator, profiles, privacy & moderation (Phase 2)
 - The **admin world editor** at `/admin/world` (Phase 1H) — the data model is

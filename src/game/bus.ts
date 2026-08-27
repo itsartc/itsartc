@@ -18,6 +18,8 @@ export interface WorldEvents {
   "district:change": { id: string; name: string } | null;
   /** The world scene finished booting. */
   "world:ready": { name: string };
+  /** Number of live players currently in the world (including you). */
+  "presence:count": number;
 }
 
 type Handler<T> = (payload: T) => void;

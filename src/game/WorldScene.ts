@@ -8,6 +8,8 @@ import {
   paintObject,
   ensureCharacterTexture,
 } from "./render";
+import { getLocalIdentity, type PlayerIdentity } from "@/net/identity";
+import { joinWorld, type RemotePlayerState } from "@/net/presence";
 
 const PLAYER_SPEED = 165;
 const NPC_SPEED = 40;
@@ -22,6 +24,16 @@ interface NpcState {
   pauseUntil: number;
 }
 
+/** A network-driven player rendered from realtime presence + move broadcasts. */
+interface RemotePlayer {
+  seed: PersonSeed;
+  sprite: Phaser.GameObjects.Sprite;
+  label: Phaser.GameObjects.Text;
+  /** Interpolation target in world pixels (last position we heard). */
+  target: { x: number; y: number };
+  flipX: boolean;
+}
+
 export class WorldScene extends Phaser.Scene {
   private map!: WorldMap;
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -33,6 +45,12 @@ export class WorldScene extends Phaser.Scene {
   private lastDistrict: string | null = null;
   private lastEntrance: string | null = null;
   private lastNearKey = "";
+
+  // Networking
+  private identity!: PlayerIdentity;
+  private remotes = new Map<string, RemotePlayer>();
+  private net: { pushMove: (now: number) => void; destroy: () => void } | null = null;
+  private lastFlipX = false;
 
   constructor() {
     super("world");
@@ -54,10 +72,10 @@ export class WorldScene extends Phaser.Scene {
 
     this.buildCollision();
 
-    // Player
-    ensureCharacterTexture(this, "char-player", {
-      skin: "#e8b48c", hair: "#2a2a2a", top: "#c33c3c", bottom: "#2f3b4a",
-    });
+    // Player — appearance comes from this browser's live guest identity, so
+    // other players see the same avatar we broadcast.
+    this.identity = getLocalIdentity();
+    ensureCharacterTexture(this, "char-player", this.identity.palette);
     this.player = this.physics.add.sprite(
       map.spawn.x * ts + ts / 2,
       map.spawn.y * ts + ts / 2,
@@ -67,11 +85,15 @@ export class WorldScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(14, 12).setOffset(3, 15);
 
-    // Player shadow + name tag
-    const tag = this.add.text(this.player.x, this.player.y - 22, "You", {
-      fontFamily: "monospace", fontSize: "11px", color: "#fff",
-      backgroundColor: "#c33c3c", padding: { x: 3, y: 1 },
-    });
+    // Player name tag
+    const tag = this.add.text(
+      this.player.x, this.player.y - 22,
+      `${INTENTS[this.identity.intent].emoji} You`,
+      {
+        fontFamily: "monospace", fontSize: "11px", color: "#fff",
+        backgroundColor: this.identity.palette.top, padding: { x: 3, y: 1 },
+      },
+    );
     tag.setOrigin(0.5, 1).setDepth(200000);
     this.player.setData("tag", tag);
 
@@ -94,7 +116,104 @@ export class WorldScene extends Phaser.Scene {
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => this.onPointerDown(p));
 
+    this.startNetwork();
+
+    // Tear the realtime channel down cleanly when the scene ends.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.net?.destroy());
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.net?.destroy());
+
     bus.emit("world:ready", { name: map.name });
+  }
+
+  // --- Networking (live multiplayer) ---------------------------------------
+
+  private startNetwork() {
+    try {
+      this.net = joinWorld(
+        this.map.id,
+        this.identity,
+        () => ({ x: this.player.x, y: this.player.y, flipX: this.lastFlipX }),
+        {
+          onJoin: (s) => this.addRemote(s),
+          onMove: (m) => this.moveRemote(m.id, m.x, m.y, m.flipX),
+          onLeave: (id) => this.removeRemote(id),
+          onCount: (c) => bus.emit("presence:count", c),
+        },
+      );
+    } catch (err) {
+      // The world stays fully playable offline if realtime is unavailable.
+      console.warn("[itsartc] realtime unavailable:", err);
+    }
+  }
+
+  /** Build a PersonSeed from a remote player so the existing profile/proximity UI works unchanged. */
+  private seedFromRemote(s: RemotePlayerState): PersonSeed {
+    const ts = this.map.tileSize;
+    return {
+      id: s.id, name: s.name, role: s.role, company: s.company,
+      location: s.location, intent: s.intent, bio: s.bio,
+      workingOn: s.workingOn, lookingFor: s.lookingFor,
+      x: Math.floor(s.x / ts), y: Math.floor(s.y / ts),
+      palette: s.palette,
+    };
+  }
+
+  private addRemote(s: RemotePlayerState) {
+    if (this.remotes.has(s.id)) {
+      // Re-sync of an existing peer: just refresh their target.
+      this.moveRemote(s.id, s.x, s.y, s.flipX);
+      return;
+    }
+    const key = `remote-${s.id}`;
+    ensureCharacterTexture(this, key, s.palette);
+    const sprite = this.add.sprite(s.x, s.y, key);
+    sprite.setDepth(s.y);
+    sprite.setFlipX(s.flipX);
+
+    const intent = INTENTS[s.intent];
+    const label = this.add.text(
+      s.x, s.y - 22,
+      `${intent.emoji} ${s.name.split(" ")[0]}`,
+      {
+        fontFamily: "monospace", fontSize: "11px", color: "#fff",
+        backgroundColor: "#1e88e5cc", padding: { x: 3, y: 1 },
+      },
+    );
+    label.setOrigin(0.5, 1).setDepth(200000);
+
+    this.remotes.set(s.id, {
+      seed: this.seedFromRemote(s),
+      sprite, label,
+      target: { x: s.x, y: s.y },
+      flipX: s.flipX,
+    });
+  }
+
+  private moveRemote(id: string, x: number, y: number, flipX: boolean) {
+    const r = this.remotes.get(id);
+    if (!r) return;
+    r.target.x = x;
+    r.target.y = y;
+    r.flipX = flipX;
+  }
+
+  private removeRemote(id: string) {
+    const r = this.remotes.get(id);
+    if (!r) return;
+    r.sprite.destroy();
+    r.label.destroy();
+    this.remotes.delete(id);
+  }
+
+  private updateRemotes() {
+    for (const r of this.remotes.values()) {
+      // Smoothly interpolate toward the last position we heard.
+      r.sprite.x += (r.target.x - r.sprite.x) * 0.25;
+      r.sprite.y += (r.target.y - r.sprite.y) * 0.25;
+      r.sprite.setFlipX(r.flipX);
+      r.sprite.setDepth(r.sprite.y);
+      r.label.setPosition(r.sprite.x, r.sprite.y - 20);
+    }
   }
 
   // --- Collision -----------------------------------------------------------
@@ -202,7 +321,15 @@ export class WorldScene extends Phaser.Scene {
     const wy = p.worldY;
 
     // Hit-test avatars first — clicking a person is intentional selection,
-    // never movement, and never a consequential action.
+    // never movement, and never a consequential action. Live players take
+    // precedence over seeded NPCs when they overlap.
+    for (const r of this.remotes.values()) {
+      const b = r.sprite.getBounds();
+      if (wx >= b.x - 6 && wx <= b.right + 6 && wy >= b.y - 6 && wy <= b.bottom + 6) {
+        bus.emit("person:selected", r.seed);
+        return;
+      }
+    }
     for (const n of this.npcs) {
       const b = n.sprite.getBounds();
       // generous hit padding
@@ -231,6 +358,8 @@ export class WorldScene extends Phaser.Scene {
   update(time: number, delta: number) {
     this.updatePlayer();
     this.updateNpcs(time, delta);
+    this.updateRemotes();
+    this.net?.pushMove(time);
     this.updateProximity();
     this.updateDistrict();
     this.updateEntrance();
@@ -245,7 +374,7 @@ export class WorldScene extends Phaser.Scene {
       this.walkTarget = null;
       const v = new Phaser.Math.Vector2(kb.x, kb.y).normalize().scale(PLAYER_SPEED);
       body.setVelocity(v.x, v.y);
-      this.player.setFlipX(kb.x < 0);
+      if (kb.x !== 0) { this.lastFlipX = kb.x < 0; this.player.setFlipX(this.lastFlipX); }
     } else if (this.walkTarget) {
       const dx = this.walkTarget.x - this.player.x;
       const dy = this.walkTarget.y - this.player.y;
@@ -256,7 +385,8 @@ export class WorldScene extends Phaser.Scene {
       } else {
         const v = new Phaser.Math.Vector2(dx, dy).normalize().scale(PLAYER_SPEED);
         body.setVelocity(v.x, v.y);
-        this.player.setFlipX(dx < 0);
+        this.lastFlipX = dx < 0;
+        this.player.setFlipX(this.lastFlipX);
       }
     } else {
       body.setVelocity(0, 0);
@@ -323,6 +453,16 @@ export class WorldScene extends Phaser.Scene {
         n.label.setColor("#c8ffce");
       } else {
         n.label.setColor("#ffffff");
+      }
+    }
+    // Live players count toward conversation range too.
+    for (const r of this.remotes.values()) {
+      const d = Math.hypot(r.sprite.x - this.player.x, r.sprite.y - this.player.y) / ts;
+      if (d <= PROXIMITY_TILES) {
+        near.push({ person: r.seed, distanceTiles: Math.round(d * 10) / 10 });
+        r.label.setColor("#c8ffce");
+      } else {
+        r.label.setColor("#ffffff");
       }
     }
     near.sort((a, b) => a.distanceTiles - b.distanceTiles);

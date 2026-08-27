@@ -20,6 +20,7 @@ export default function WorldShell() {
   const [near, setNear] = useState<NearPerson[]>([]);
   const [selected, setSelected] = useState<PersonSeed | null>(null);
   const [enterPrompt, setEnterPrompt] = useState<string | null>(null);
+  const [online, setOnline] = useState(1);
 
   useEffect(() => {
     const offs = [
@@ -27,6 +28,7 @@ export default function WorldShell() {
       bus.on("district:change", (d) => setDistrict(d?.name ?? "Town Central")),
       bus.on("proximity:update", (n) => setNear(n)),
       bus.on("person:selected", (p) => setSelected(p)),
+      bus.on("presence:count", (c) => setOnline(Math.max(1, c))),
       bus.on("building:enter", (b) => {
         setEnterPrompt(b.name);
         window.clearTimeout((window as unknown as { __et?: number }).__et);
@@ -54,10 +56,17 @@ export default function WorldShell() {
       )}
 
       {/* Location HUD */}
-      <div className="pointer-events-none absolute left-4 top-4 z-20">
+      <div className="pointer-events-none absolute left-4 top-4 z-20 flex items-start gap-2">
         <div className="rounded-lg bg-ink/85 px-3 py-2 text-parchment shadow-lg">
           <div className="text-[10px] uppercase tracking-widest opacity-60">You are in</div>
           <div className="font-semibold">{district}</div>
+        </div>
+        <div className="rounded-lg bg-ink/85 px-3 py-2 text-parchment shadow-lg">
+          <div className="text-[10px] uppercase tracking-widest opacity-60">Live now</div>
+          <div className="flex items-center gap-1.5 font-semibold">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-400" />
+            {online} {online === 1 ? "person" : "people"}
+          </div>
         </div>
       </div>
 
