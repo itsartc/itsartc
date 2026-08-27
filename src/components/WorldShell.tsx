@@ -12,7 +12,7 @@ const GameCanvas = dynamic(() => import("@/game/GameCanvas"), { ssr: false });
 
 // Bump on each multiplayer-related deploy so a screenshot reveals the running
 // build (a cached old bundle won't show the current tag).
-const BUILD_TAG = "voice2-turn";
+const BUILD_TAG = "voice3";
 
 /**
  * The full-screen world experience: the Phaser canvas plus the React overlay
@@ -121,13 +121,17 @@ export default function WorldShell() {
               {voice.micDenied ? "Mic blocked" : voice.micEnabled ? "Mic on" : "Enable mic"}
             </span>
           </button>
-          {audible > 0 ? (
+          {links > 0 && audible > 0 ? (
             <span className="rounded-full bg-ink/85 px-3 py-2 text-xs text-parchment shadow-lg">
               🔊 hearing {audible} nearby
             </span>
           ) : links > 0 ? (
             <span className="rounded-full bg-ink/85 px-3 py-2 text-xs text-parchment/80 shadow-lg">
               🔗 voice-linked to {links} · walk closer to hear them
+            </span>
+          ) : online > 1 ? (
+            <span className="rounded-full bg-ink/85 px-3 py-2 text-xs text-amber-300/90 shadow-lg">
+              🟡 connecting voice… (needs a TURN relay across networks)
             </span>
           ) : null}
         </div>

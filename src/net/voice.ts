@@ -116,6 +116,10 @@ export function createVoice(worldId: string, myId: string, cb: VoiceCallbacks = 
     audioEl.autoplay = true;
     (audioEl as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
     audioEl.volume = 0;
+    // iOS Safari will not play WebRTC audio from a detached element, so attach
+    // it to the DOM (hidden). Harmless on every other browser.
+    audioEl.style.display = "none";
+    if (typeof document !== "undefined") document.body.appendChild(audioEl);
 
     // One audio transceiver per peer; starts receive-only and flips to
     // send+receive when this client enables its mic.
@@ -238,6 +242,7 @@ export function createVoice(worldId: string, myId: string, cb: VoiceCallbacks = 
     peer.pc.onconnectionstatechange = null;
     peer.pc.close();
     peer.audioEl.srcObject = null;
+    peer.audioEl.remove();
     pendingPlay.delete(peer.audioEl);
     peers.delete(peerId);
     emitLinks();
