@@ -110,10 +110,13 @@ src/world/           # The world data model + authored world
 
 `/world3d` now has fixed-step movement, camera follow, world bounds, and
 renderer-neutral authored collision. `src/three/assets/` contains a cache,
-clone, transform, and disposal abstraction for curated GLB models. Founder Café
-is the first building slice, using one model from Kenney City Kit (Commercial)
-2.1. One tree and one rock from the older OBJ-based Nature Kit are converted to
-GLB and reused for their matching authored object types. Placeholder geometry
+clone, transform, and disposal abstraction for curated GLB models. Each of Town
+Central's eight venues now has a distinct model selected from Kenney City Kit
+(Commercial) 2.1. One tree and one rock from the older OBJ-based Nature Kit are
+converted to GLB alongside a fall tree, flower and sign, and are reused for their
+matching authored object types. Commercial parasols anchor conversation tables;
+small procedural fallbacks make fountains, lamps, billboards, benches and
+planters visible until matching curated models arrive. Placeholder geometry
 remains the building fallback and no pack is bulk-imported.
 
 ---
