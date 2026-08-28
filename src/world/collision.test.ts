@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorldMap } from "./schema";
 import { WorldCollision } from "./collision";
+import { townCentral } from "./townCentral";
 
 function map(overrides: Partial<WorldMap> = {}): WorldMap {
   return {
@@ -94,5 +95,32 @@ describe("WorldCollision", () => {
 
     expect(result.blockedX).toBe(true);
     expect(result.x).toBeCloseTo(2.7, 3);
+  });
+
+  it("keeps every Town Central venue entrance reachable from spawn", () => {
+    const collision = new WorldCollision(townCentral);
+    const key = (x: number, y: number) => `${x},${y}`;
+    const queue = [{ x: townCentral.spawn.x, y: townCentral.spawn.y }];
+    const reachable = new Set([key(townCentral.spawn.x, townCentral.spawn.y)]);
+
+    for (let index = 0; index < queue.length; index++) {
+      const tile = queue[index];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const x = tile.x + dx;
+        const y = tile.y + dy;
+        const nextKey = key(x, y);
+        if (reachable.has(nextKey) || collision.isSolidTile(x, y)) continue;
+        reachable.add(nextKey);
+        queue.push({ x, y });
+      }
+    }
+
+    for (const building of townCentral.buildings) {
+      expect(building.entrance, `${building.name} needs an entrance`).toBeDefined();
+      expect(
+        reachable.has(key(building.entrance!.x, building.entrance!.y)),
+        `${building.name} entrance must be reachable`,
+      ).toBe(true);
+    }
   });
 });

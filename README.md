@@ -117,7 +117,10 @@ converted to GLB alongside a fall tree, flower and sign, and are reused for thei
 matching authored object types. Commercial parasols anchor conversation tables;
 small procedural fallbacks make fountains, lamps, billboards, benches and
 planters visible until matching curated models arrive. Placeholder geometry
-remains the building fallback and no pack is bulk-imported.
+remains the building fallback and no pack is bulk-imported. The Three.js terrain
+layer also gives venues concrete city-block pads and turns authored paths into
+wide streets with inset pedestrian sidewalks; this visual treatment does not
+change collision or world-pixel networking coordinates.
 
 ---
 
