@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "threejs-aaa-graphics-builder": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-aaa-graphics-builder/SKILL.md",
+      "computedHash": "fd1bd5c64b5dc5fa4e09907d2c42234466b2b9db9489ad259242d3eaba4b3af2"
+    },
     "threejs-game-director": {
       "source": "majidmanzarpour/threejs-game-skills",
       "sourceType": "github",
