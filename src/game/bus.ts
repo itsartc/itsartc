@@ -14,6 +14,13 @@ export interface WorldEvents {
   "proximity:update": NearPerson[];
   /** Player stepped onto an enterable building's entrance. */
   "building:enter": { id: string; name: string; interiorId?: string };
+  /**
+   * The player moved between the outdoor world and a building interior.
+   * `null` means they are outdoors.
+   */
+  "interior:change": { id: string; name: string; buildingId: string } | null;
+  /** UI -> world: the player asked to leave the interior they are in. */
+  "interior:leave": void;
   /** Player's current district changed (for the location HUD). */
   "district:change": { id: string; name: string } | null;
   /** The world scene finished booting. */

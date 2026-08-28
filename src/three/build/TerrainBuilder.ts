@@ -22,6 +22,10 @@ const TERRAIN_COLORS: Record<TerrainType, number> = {
   plaza: 0xcbd0d7,
   water: 0x3f97cf,
   sand: 0xe0cd93,
+  wood: 0xb5854f,
+  carpet: 0xa15c58,
+  tile: 0xdfe4e8,
+  concrete: 0x9aa0a6,
 };
 
 /** Draw order offsets (in scene units) so coplanar quads don't z-fight. */

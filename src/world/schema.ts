@@ -16,7 +16,26 @@ export type TerrainType =
   | "path"
   | "plaza"
   | "water"
-  | "sand";
+  | "sand"
+  | "wood"
+  | "carpet"
+  | "tile"
+  | "concrete";
+
+/**
+ * Anything a renderer can paint a floor for: the outdoor world, or a building
+ * interior. Both are tile grids with a base fill and painted regions, so the
+ * terrain and object painters take this rather than a full WorldMap — which is
+ * what lets interiors reuse the existing renderer instead of duplicating it.
+ */
+export interface TerrainSurface {
+  tileSize: number;
+  widthTiles: number;
+  heightTiles: number;
+  /** Base terrain painted under everything. */
+  baseTerrain: TerrainType;
+  terrain: TerrainRegion[];
+}
 
 /** A rectangular painted area of a single terrain type. */
 export interface TerrainRegion {
@@ -207,23 +226,53 @@ export interface PersonSeed {
   wander?: number;
 }
 
-export interface WorldMap {
+/**
+ * A building interior: its own small tile map, entered from the parent
+ * building's door tile.
+ *
+ * Interiors are separate surfaces rather than a region of the outdoor map. That
+ * keeps them independently authorable and independently sized — a caf\u00e9 interior
+ * should not have to fit inside the caf\u00e9's outdoor footprint — and it means the
+ * admin editor (1H) can edit one without touching the world around it.
+ *
+ * `walls` are solid rectangles in interior tile space. The perimeter is
+ * authored explicitly rather than implied, so a room can have openings,
+ * partitions and internal structure without special-casing the edge.
+ */
+export interface Interior extends TerrainSurface {
+  id: string;
+  name: string;
+  /** The building this interior belongs to. */
+  buildingId: string;
+  /** District inherited from the parent building, for the location HUD. */
+  districtId: string;
+  /** Where the player arrives when entering. */
+  spawn: { x: number; y: number };
+  /** Door tile: stepping onto it returns the player outside. */
+  exit: { x: number; y: number };
+  /** Solid rectangles in interior tiles \u2014 perimeter walls, partitions, counters. */
+  walls: { x: number; y: number; w: number; h: number }[];
+  objects: WorldObject[];
+  /** Named areas inside the interior (Phase 1B/1D hierarchy). */
+  subAreas?: SubArea[];
+  rooms?: Room[];
+  /** Seeded people who live inside this interior. */
+  people?: PersonSeed[];
+}
+
+export interface WorldMap extends TerrainSurface {
   id: string;
   name: string;
   version: number;
-  tileSize: number;
-  widthTiles: number;
-  heightTiles: number;
-  /** Base terrain painted under everything. */
-  baseTerrain: TerrainType;
   spawn: { x: number; y: number };
-  terrain: TerrainRegion[];
   districts: District[];
   buildings: Building[];
   /** Named sub-areas within venues/districts (Phase 1B/1D). */
   subAreas?: SubArea[];
-  /** Rooms within building interiors (Phase 1B; interiors themselves are Phase 1F). */
+  /** Rooms within building interiors (Phase 1B). */
   rooms?: Room[];
+  /** Building interiors, keyed off Building.interiorId (Phase 1F). */
+  interiors?: Interior[];
   objects: WorldObject[];
   people: PersonSeed[];
   zones: Zone[];

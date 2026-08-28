@@ -1,4 +1,5 @@
 import type { WorldMap } from "./schema";
+import { interiors } from "./interiors";
 
 /**
  * "Town Central" — the launch world (v1).
@@ -277,4 +278,7 @@ export const townCentral: WorldMap = {
     { id: "rm-cafe-upstairs-ai", name: "Upstairs — AI", interiorId: "int-founder-cafe", subcategory: "AI" },
     { id: "rm-cafe-investor", name: "Investor Corner", interiorId: "int-founder-cafe", subcategory: "Investing" },
   ],
+
+  // Phase 1F — the interior maps behind every enterable building.
+  interiors,
 };
