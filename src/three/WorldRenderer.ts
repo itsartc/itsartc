@@ -120,7 +120,7 @@ export class WorldRenderer {
     this.scene.background = new THREE.Color(0x8fb7d4); // plain daylight sky
 
     // --- Camera -----------------------------------------------------------
-    this.rig = new CameraRig(map, width / height, options.view ?? "follow");
+    this.rig = new CameraRig(map, width / height, options.view ?? "first-person");
 
     // --- World content ----------------------------------------------------
     const terrain = buildTerrain(map);
@@ -145,11 +145,12 @@ export class WorldRenderer {
 
     const avatar = buildPlayer();
     this.playerMesh = avatar.group;
+    this.playerMesh.visible = (options.view ?? "first-person") !== "first-person";
     this.scene.add(this.playerMesh);
     this.disposers.push(avatar.dispose);
 
     this.syncPlayerMesh(0);
-    this.rig.setFollowTarget(this.player.position);
+    this.rig.setFollowTarget(this.player.position, this.player.facing);
     this.rig.snap();
 
     this.addLighting();
@@ -243,7 +244,7 @@ export class WorldRenderer {
     this.player.update(dt);
     this.syncPlayerMesh(this.elapsed);
 
-    this.rig.setFollowTarget(this.player.position);
+    this.rig.setFollowTarget(this.player.position, this.player.facing);
     this.rig.update(dt);
 
     this.renderer.render(this.scene, this.rig.camera);
@@ -252,6 +253,7 @@ export class WorldRenderer {
   /** Switch framing at runtime. Diagnostic only — not a player-facing control. */
   setView(view: CameraView) {
     if (this.disposed) return;
+    this.playerMesh.visible = view !== "first-person";
     this.rig.setView(view);
   }
 

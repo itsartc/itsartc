@@ -1,4 +1,5 @@
 import type { WorldMap } from "./schema";
+import { getWorldAsset } from "./assetCatalog";
 
 /** Collision uses authored tile units, independent of either renderer. */
 export interface CircleMoveResult {
@@ -45,7 +46,10 @@ export class WorldCollision {
     }
 
     for (const object of map.objects) {
-      if (object.solid) this.mark(object.x, object.y);
+      const footprint = getWorldAsset(object.assetId)?.defaultFootprint;
+      if (object.solid) {
+        this.markRect(object.x, object.y, footprint?.w ?? 1, footprint?.h ?? 1);
+      }
       if (object.type === "fountain") this.markRect(object.x, object.y, 2, 2);
     }
 

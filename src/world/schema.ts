@@ -83,6 +83,10 @@ export interface Building {
   sponsor?: string | null;
   capacity?: number;
   adSlots?: AdSlot[];
+  /** Renderer asset selected by the world editor; legacy maps may use bindings. */
+  assetId?: string;
+  /** Clockwise rotation in degrees, snapped to quarter turns by the editor. */
+  rotation?: 0 | 90 | 180 | 270;
 }
 
 export type ObjectType =
@@ -97,7 +101,14 @@ export type ObjectType =
   | "sign"
   | "billboard"
   | "table"
-  | "planter";
+  | "planter"
+  | "parasol"
+  | "grass"
+  | "log"
+  | "pot"
+  | "statue"
+  | "fence"
+  | "bridge";
 
 /** A reusable, independently-editable world object (Phase 1G). */
 export interface WorldObject {
@@ -109,6 +120,10 @@ export interface WorldObject {
   label?: string;
   /** Whether this object blocks movement. */
   solid?: boolean;
+  /** Renderer asset selected by the world editor; type remains semantic. */
+  assetId?: string;
+  /** Clockwise rotation in degrees, snapped to quarter turns by the editor. */
+  rotation?: 0 | 90 | 180 | 270;
 }
 
 /**

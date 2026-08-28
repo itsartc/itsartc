@@ -120,13 +120,13 @@ export function buildBuildings(
       group.add(pad);
     }
 
-    const assetId = bindings[b.id];
+    const assetId = b.assetId ?? bindings[b.id];
     if (assets && assetId) {
       loading.push(
         assets.instantiate(assetId)
           .then((model) => {
             if (disposed) return;
-            fitToFootprint(model, corner, b.w, b.h);
+            fitToFootprint(model, corner, b.w, b.h, b.rotation ?? 0);
             model.userData.buildingId = b.id;
             group.add(model);
             placeholder.visible = false;
@@ -157,7 +157,9 @@ function fitToFootprint(
   corner: THREE.Vector3,
   width: number,
   depth: number,
+  rotation: 0 | 90 | 180 | 270,
 ) {
+  model.rotation.y += THREE.MathUtils.degToRad(rotation);
   model.updateMatrixWorld(true);
   const initialBounds = new THREE.Box3().setFromObject(model);
   const size = initialBounds.getSize(new THREE.Vector3());

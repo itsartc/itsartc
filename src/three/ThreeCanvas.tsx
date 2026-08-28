@@ -31,10 +31,12 @@ export default function ThreeCanvas() {
         // `?view=overview` frames the whole map. Diagnostic only: it exists so
         // orientation can be compared against the 2D route. The default is the
         // product camera, which follows the player.
-        const view =
-          new URLSearchParams(window.location.search).get("view") === "overview"
-            ? ("overview" as const)
-            : ("follow" as const);
+        const requestedView = new URLSearchParams(window.location.search).get("view");
+        const view = requestedView === "overview"
+          ? ("overview" as const)
+          : requestedView === "third-person"
+            ? ("follow" as const)
+            : ("first-person" as const);
 
         const instance = new WorldRenderer(containerRef.current, townCentral, { view });
         renderer = instance;

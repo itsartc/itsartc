@@ -106,3 +106,37 @@ no over-the-shoulder framing, never straight down. Pitch and yaw are constants.
 
 This changes camera and framing only. World coordinates, world data, building
 geometry, networking and the wire protocol are untouched.
+
+---
+
+## D-003 — Primary play camera: elevated social view → first-person
+
+**Date:** 2026-08-28
+**Status:** Approved
+**Supersedes:** D-001 and D-002 for the player-facing camera
+
+### Decision
+
+The primary playable Three.js experience is first-person at human eye height.
+The player moves through streets, plazas and interiors from their avatar's
+perspective, making proximity, venue scale and spatial voice feel natural.
+
+A close third-person option may be retained for accessibility and social
+presence. The elevated whole-world camera remains an admin/editor and diagnostic
+tool only; it is no longer the intended player experience.
+
+### Consequences
+
+- WASD movement must be relative to view direction, with pointer/touch look.
+- Click-to-walk may remain as an accessibility option but cannot be the only
+  pointer interaction.
+- Asset scale, entrances, sidewalks, collision and signage must be validated at
+  human eye height, not only from above.
+- The world admin keeps a top-down editing canvas and adds a first-person preview.
+- Existing world-pixel coordinates and the network wire format remain unchanged.
+
+### Reference qualities
+
+The target is a lively, readable commercial plaza: wide pedestrian routes,
+clear venue façades, visible names, landscaping, gathering areas and strong
+near/mid/far depth. Density must never block circulation or accessible entrances.

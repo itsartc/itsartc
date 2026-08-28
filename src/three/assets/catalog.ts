@@ -1,51 +1,11 @@
 import type { ObjectType } from "@/world/schema";
+import { WORLD_ASSETS } from "@/world/assetCatalog";
 import type { GlbAssetCatalog } from "./AssetRegistry";
 
-/** Curated sources only: each entry must earn its place in the world. */
-export const WORLD_GLBS: GlbAssetCatalog = {
-  "city-commercial.building-e": {
-    url: "/assets/kenney/city-kit-commercial/building-e.glb",
-  },
-  "city-commercial.building-b": {
-    url: "/assets/kenney/city-kit-commercial/building-b.glb",
-  },
-  "city-commercial.building-c": {
-    url: "/assets/kenney/city-kit-commercial/building-c.glb",
-  },
-  "city-commercial.building-h": {
-    url: "/assets/kenney/city-kit-commercial/building-h.glb",
-  },
-  "city-commercial.building-i": {
-    url: "/assets/kenney/city-kit-commercial/building-i.glb",
-  },
-  "city-commercial.building-j": {
-    url: "/assets/kenney/city-kit-commercial/building-j.glb",
-  },
-  "city-commercial.building-k": {
-    url: "/assets/kenney/city-kit-commercial/building-k.glb",
-  },
-  "city-commercial.building-n": {
-    url: "/assets/kenney/city-kit-commercial/building-n.glb",
-  },
-  "city-commercial.parasol-a": {
-    url: "/assets/kenney/city-kit-commercial/detail-parasol-a.glb",
-  },
-  "nature.tree-default": {
-    url: "/assets/kenney/nature-kit/tree-default.glb",
-  },
-  "nature.rock-small-a": {
-    url: "/assets/kenney/nature-kit/rock-small-a.glb",
-  },
-  "nature.tree-default-fall": {
-    url: "/assets/kenney/nature-kit/tree-default-fall.glb",
-  },
-  "nature.flower-purple-a": {
-    url: "/assets/kenney/nature-kit/flower-purple-a.glb",
-  },
-  "nature.sign": {
-    url: "/assets/kenney/nature-kit/sign.glb",
-  },
-};
+/** One loadable registry generated from the editor's verified asset catalog. */
+export const WORLD_GLBS: GlbAssetCatalog = Object.fromEntries(
+  WORLD_ASSETS.map((asset) => [asset.id, { url: asset.url }]),
+);
 
 /** World identities stay separate from visual asset identities. */
 export interface WorldAssetBindings {
@@ -73,6 +33,6 @@ export const WORLD_ASSET_BINDINGS: WorldAssetBindings = {
     rock: "nature.rock-small-a",
     flowers: "nature.flower-purple-a",
     sign: "nature.sign",
-    table: "city-commercial.parasol-a",
+    table: "city-commercial.detail-parasol-a",
   },
 };

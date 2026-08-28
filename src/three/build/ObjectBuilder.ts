@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { ObjectType, WorldMap, WorldObject } from "@/world/schema";
+import { getWorldAsset } from "@/world/assetCatalog";
 import { tileCenterToThree } from "../coords";
 import type { AssetRegistry } from "../assets/AssetRegistry";
 
@@ -7,6 +8,8 @@ interface ObjectFit {
   width: number;
   depth: number;
   height: number;
+  centreOffsetX?: number;
+  centreOffsetY?: number;
 }
 
 const FIT_BY_TYPE: Partial<Record<ObjectType, ObjectFit>> = {
@@ -44,8 +47,17 @@ export function buildObjects(
 
   const loading: Promise<void>[] = [];
   for (const object of map.objects) {
-    const assetId = bindings[object.type];
-    const fit = FIT_BY_TYPE[object.type];
+    const assetId = object.assetId ?? bindings[object.type];
+    const definition = getWorldAsset(assetId);
+    const fit = definition?.placement === "object"
+      ? {
+          width: Math.max(0.1, definition.defaultFootprint.w - 0.1),
+          depth: Math.max(0.1, definition.defaultFootprint.h - 0.1),
+          height: definition.defaultHeight ?? 1,
+          centreOffsetX: (definition.defaultFootprint.w - 1) / 2,
+          centreOffsetY: (definition.defaultFootprint.h - 1) / 2,
+        }
+      : FIT_BY_TYPE[object.type];
     if (assetId && fit) {
       loading.push(
         assets
@@ -205,12 +217,17 @@ function fitToTile(model: THREE.Group, object: WorldObject, fit: ObjectFit) {
 
   const scale = Math.min(fit.width / size.x, fit.depth / size.z, fit.height / size.y);
   model.scale.multiplyScalar(scale);
-  model.rotation.y = stableRotation(object.id);
+  model.rotation.y = object.rotation === undefined
+    ? stableRotation(object.id)
+    : THREE.MathUtils.degToRad(object.rotation);
   model.updateMatrixWorld(true);
 
   const bounds = new THREE.Box3().setFromObject(model);
   const centre = bounds.getCenter(new THREE.Vector3());
-  const target = tileCenterToThree(object.x, object.y);
+  const target = tileCenterToThree(
+    object.x + (fit.centreOffsetX ?? 0),
+    object.y + (fit.centreOffsetY ?? 0),
+  );
   model.position.x += target.x - centre.x;
   model.position.y -= bounds.min.y;
   model.position.z += target.z - centre.z;

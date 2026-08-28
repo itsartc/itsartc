@@ -23,7 +23,7 @@ export default function World3DPage() {
           </div>
           <div className="font-semibold">Town Central · 3D</div>
           <div className="mt-0.5 font-mono text-[9px] uppercase tracking-wider opacity-40">
-            phase 3 · player + camera + collision
+            first-person foundation · player + collision
           </div>
           <div className="mt-1.5 border-t border-parchment/15 pt-1.5 font-mono text-[10px] opacity-60">
             WASD / arrows / click to walk

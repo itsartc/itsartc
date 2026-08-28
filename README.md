@@ -122,6 +122,12 @@ layer also gives venues concrete city-block pads and turns authored paths into
 wide streets with inset pedestrian sidewalks; this visual treatment does not
 change collision or world-pixel networking coordinates.
 
+The local-draft world builder lives at `/admin/worlds`. It exposes 139 verified
+Kenney assets, placement and property editing, structural validation, JSON
+import/export, and overhead/first-person Three.js previews. Publishing is
+intentionally disabled until authenticated, server-validated drafts are added;
+see `docs/ADMIN_WORLD_BUILDER.md`.
+
 ---
 
 ## Running locally

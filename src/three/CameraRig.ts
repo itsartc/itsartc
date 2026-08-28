@@ -3,8 +3,8 @@ import type { WorldMap } from "@/world/schema";
 import { worldCenterToThree, worldSize } from "./coords";
 
 /**
- * The camera rig: a fixed elevated, angled social-world camera that follows a
- * target without ever rotating (product decisions D-001, D-002).
+ * Camera rig for the first-person product view plus editor/diagnostic views
+ * (product decision D-003).
  *
  * Pitch and yaw are constants. Nothing in the game loop, and no user input, may
  * change them — the whole commercial premise is that a sponsored façade is
@@ -65,13 +65,16 @@ const TARGET_HEIGHT = 1.2;
  * Applied frame-rate-independently, so the feel does not change with FPS.
  */
 const FOLLOW_STIFFNESS = 9;
+const FIRST_PERSON_EYE_HEIGHT = 1.55;
+const FIRST_PERSON_LOOK_DISTANCE = 12;
+const TURN_STIFFNESS = 14;
 
 /**
- * `follow` is the product camera and the default: gameplay range, tracking the
- * player. `overview` frames the entire map and exists only as a diagnostic for
- * comparing orientation against the 2D route (`/world3d?view=overview`).
+ * `first-person` is the product view. `follow` retains the previous close
+ * elevated view as an optional third-person/accessibility mode. `overview` is
+ * reserved for the editor and diagnostics.
  */
-export type CameraView = "follow" | "overview";
+export type CameraView = "first-person" | "follow" | "overview";
 
 export class CameraRig {
   readonly camera: THREE.PerspectiveCamera;
@@ -86,8 +89,10 @@ export class CameraRig {
   private readonly desired = new THREE.Vector3();
 
   private distance = MAX_DISTANCE;
+  private facing = 0;
+  private desiredFacing = 0;
 
-  constructor(map: WorldMap, aspect: number, view: CameraView = "follow") {
+  constructor(map: WorldMap, aspect: number, view: CameraView = "first-person") {
     this.map = map;
     this.view = view;
     this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, 0.1, 500);
@@ -136,6 +141,7 @@ export class CameraRig {
   }
 
   private refit() {
+    if (this.view === "first-person") return;
     this.distance = this.view === "overview" ? this.overviewDistance() : this.followDistance();
   }
 
@@ -147,6 +153,16 @@ export class CameraRig {
    * rotates that offset so a second face of each building comes into view.
    */
   private place() {
+    if (this.view === "first-person") {
+      this.camera.position.set(this.target.x, FIRST_PERSON_EYE_HEIGHT, this.target.z);
+      this.camera.lookAt(
+        this.target.x + Math.sin(this.facing) * FIRST_PERSON_LOOK_DISTANCE,
+        FIRST_PERSON_EYE_HEIGHT - 0.08,
+        this.target.z + Math.cos(this.facing) * FIRST_PERSON_LOOK_DISTANCE,
+      );
+      return;
+    }
+
     const pitch = THREE.MathUtils.degToRad(CAMERA_PITCH_DEG);
     const yaw = THREE.MathUtils.degToRad(CAMERA_YAW_DEG);
 
@@ -162,9 +178,10 @@ export class CameraRig {
   }
 
   /** Point the rig should follow. Ignored in the overview view. */
-  setFollowTarget(position: THREE.Vector3) {
+  setFollowTarget(position: THREE.Vector3, facing = this.desiredFacing) {
     if (this.view === "overview") return;
     this.desired.set(position.x, TARGET_HEIGHT, position.z);
+    this.desiredFacing = facing;
   }
 
   /** Jump straight to the follow target, skipping the ease. Used on spawn. */
@@ -183,6 +200,10 @@ export class CameraRig {
   update(dt: number) {
     const t = 1 - Math.exp(-FOLLOW_STIFFNESS * dt);
     this.target.lerp(this.desired, t);
+    let facingDelta = this.desiredFacing - this.facing;
+    while (facingDelta > Math.PI) facingDelta -= Math.PI * 2;
+    while (facingDelta < -Math.PI) facingDelta += Math.PI * 2;
+    this.facing += facingDelta * (1 - Math.exp(-TURN_STIFFNESS * dt));
     this.place();
   }
 
@@ -214,9 +235,9 @@ export class CameraRig {
     return {
       view: this.view,
       fovDeg: CAMERA_FOV,
-      pitchDeg: CAMERA_PITCH_DEG,
-      yawDeg: CAMERA_YAW_DEG,
-      distance: round(this.distance),
+      pitchDeg: this.view === "first-person" ? 0 : CAMERA_PITCH_DEG,
+      yawDeg: this.view === "first-person" ? round(THREE.MathUtils.radToDeg(this.facing)) : CAMERA_YAW_DEG,
+      distance: this.view === "first-person" ? 0 : round(this.distance),
       height: round(p.y),
       position: { x: round(p.x), y: round(p.y), z: round(p.z) },
       target: { x: round(this.target.x), y: round(this.target.y), z: round(this.target.z) },
