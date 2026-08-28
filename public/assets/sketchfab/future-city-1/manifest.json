@@ -1,0 +1,185 @@
+{
+  "generatedBy": "scripts/extract-future-city-assets.mjs",
+  "source": {
+    "title": "Future_city_1",
+    "creator": "HiQ3D",
+    "creatorUrl": "https://sketchfab.com/HiQ3D",
+    "sourceUrl": "https://sketchfab.com/3d-models/future-city-1-1363540d0f934472ac556a6f8cb0bdf1",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "filename": "future_city_1.glb",
+    "sha256": "94c5f13a63b3bd4b6983c2570be165aa70bf832d16aa785c443c84b420bc5f14"
+  },
+  "notes": [
+    "The original source GLB is intentionally not deployed.",
+    "Each output contains only the nodes, meshes, materials, accessors and buffer data used by that asset.",
+    "Outputs are centred, grounded and uniformly normalized for the Three.js world editor.",
+    "Geometry has not yet been decimated; future LOD work should retain this manifest and attribution."
+  ],
+  "deferred": [
+    {
+      "id": "building-11",
+      "sourceNode": "building_11_536",
+      "triangles": 465885,
+      "reason": "Requires decimation and at least one lower-detail model before browser deployment."
+    },
+    {
+      "id": "park-bench",
+      "sourceNode": "park_bench006_933",
+      "triangles": 26376,
+      "reason": "Too detailed and abnormally proportioned; the existing lightweight bench remains the safe fallback."
+    }
+  ],
+  "assets": [
+    {
+      "id": "building-1",
+      "label": "Future Building 1",
+      "file": "building-1.glb",
+      "sourceNode": "Building_1_393",
+      "bytes": 2516356,
+      "triangles": 48039,
+      "meshes": 28,
+      "materials": 6,
+      "normalizedBoundsMetres": {
+        "width": 10,
+        "height": 15.387,
+        "depth": 10
+      }
+    },
+    {
+      "id": "building-2",
+      "label": "Future Building 2",
+      "file": "building-2.glb",
+      "sourceNode": "Building_2_595",
+      "bytes": 3224092,
+      "triangles": 60985,
+      "meshes": 30,
+      "materials": 6,
+      "normalizedBoundsMetres": {
+        "width": 8.896,
+        "height": 23.047,
+        "depth": 10
+      }
+    },
+    {
+      "id": "building-3",
+      "label": "Future Building 3",
+      "file": "building-3.glb",
+      "sourceNode": "Building_3_655",
+      "bytes": 3592328,
+      "triangles": 65830,
+      "meshes": 31,
+      "materials": 6,
+      "normalizedBoundsMetres": {
+        "width": 9.03,
+        "height": 27.379,
+        "depth": 10
+      }
+    },
+    {
+      "id": "building-4",
+      "label": "Future Building 4",
+      "file": "building-4.glb",
+      "sourceNode": "Building_4_729",
+      "bytes": 3174424,
+      "triangles": 59358,
+      "meshes": 39,
+      "materials": 12,
+      "normalizedBoundsMetres": {
+        "width": 10,
+        "height": 11.338,
+        "depth": 5.829
+      }
+    },
+    {
+      "id": "building-5",
+      "label": "Future Building 5",
+      "file": "building-5.glb",
+      "sourceNode": "Building_5_788",
+      "bytes": 3279184,
+      "triangles": 61881,
+      "meshes": 30,
+      "materials": 6,
+      "normalizedBoundsMetres": {
+        "width": 9.984,
+        "height": 14.92,
+        "depth": 10
+      }
+    },
+    {
+      "id": "building-6",
+      "label": "Future Building 6",
+      "file": "building-6.glb",
+      "sourceNode": "Building_6_851",
+      "bytes": 1096432,
+      "triangles": 20326,
+      "meshes": 33,
+      "materials": 8,
+      "normalizedBoundsMetres": {
+        "width": 10,
+        "height": 34.642,
+        "depth": 9.198
+      }
+    },
+    {
+      "id": "building-7",
+      "label": "Future Building 7",
+      "file": "building-7.glb",
+      "sourceNode": "Building_7_869",
+      "bytes": 2289268,
+      "triangles": 44251,
+      "meshes": 16,
+      "materials": 7,
+      "normalizedBoundsMetres": {
+        "width": 10,
+        "height": 12.069,
+        "depth": 5.845
+      }
+    },
+    {
+      "id": "building-8",
+      "label": "Future Building 8",
+      "file": "building-8.glb",
+      "sourceNode": "Building_8_882",
+      "bytes": 1315768,
+      "triangles": 23752,
+      "meshes": 8,
+      "materials": 6,
+      "normalizedBoundsMetres": {
+        "width": 3.017,
+        "height": 29.938,
+        "depth": 10
+      }
+    },
+    {
+      "id": "street-light",
+      "label": "Future Street Light",
+      "file": "street-light.glb",
+      "sourceNode": "Street_lights_191_66",
+      "bytes": 24852,
+      "triangles": 340,
+      "meshes": 2,
+      "materials": 2,
+      "normalizedBoundsMetres": {
+        "width": 1.383,
+        "height": 3,
+        "depth": 0.091
+      }
+    },
+    {
+      "id": "tube-bridge",
+      "label": "Future Tube Bridge",
+      "file": "tube-bridge.glb",
+      "sourceNode": "Tube_Bridge_945",
+      "bytes": 949816,
+      "triangles": 30728,
+      "meshes": 3,
+      "materials": 2,
+      "normalizedBoundsMetres": {
+        "width": 0.682,
+        "height": 1.197,
+        "depth": 8
+      }
+    }
+  ]
+}

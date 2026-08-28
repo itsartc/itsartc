@@ -1,6 +1,6 @@
 import type { ObjectType } from "./schema";
 
-export type AssetPack = "City Kit Commercial" | "Nature Kit";
+export type AssetPack = "City Kit Commercial" | "Nature Kit" | "Future City 1";
 export type AssetCategory =
   | "building"
   | "skyscraper"
@@ -28,6 +28,26 @@ export interface WorldAssetDefinition {
   /** Attachments are catalogued now but disabled until façade anchors exist. */
   editorReady: boolean;
 }
+
+export interface AssetPackCredit {
+  creator: string;
+  creatorUrl: string;
+  modelUrl: string;
+  license: string;
+  licenseUrl: string;
+  modified: boolean;
+}
+
+export const ASSET_PACK_CREDITS: Readonly<Partial<Record<AssetPack, AssetPackCredit>>> = {
+  "Future City 1": {
+    creator: "HiQ3D",
+    creatorUrl: "https://sketchfab.com/HiQ3D",
+    modelUrl: "https://sketchfab.com/3d-models/future-city-1-1363540d0f934472ac556a6f8cb0bdf1",
+    license: "CC BY 4.0",
+    licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+    modified: true,
+  },
+};
 
 const title = (slug: string) =>
   slug
@@ -72,6 +92,31 @@ const nature = (
   defaultFootprint: footprint,
   defaultHeight,
   solidByDefault,
+  editorReady: true,
+});
+
+const futureCity = (
+  slug: string,
+  label: string,
+  category: AssetCategory,
+  footprint: { w: number; h: number },
+  placement: WorldAssetDefinition["placement"] = "building",
+  options: {
+    objectType?: ObjectType;
+    defaultHeight?: number;
+    solidByDefault?: boolean;
+  } = {},
+): WorldAssetDefinition => ({
+  id: `future-city-1.${slug}`,
+  label,
+  pack: "Future City 1",
+  category,
+  url: `/assets/sketchfab/future-city-1/${slug}.glb`,
+  placement,
+  objectType: options.objectType,
+  defaultFootprint: footprint,
+  defaultHeight: options.defaultHeight,
+  solidByDefault: options.solidByDefault ?? placement === "building",
   editorReady: true,
 });
 
@@ -155,6 +200,33 @@ const fenceSlugs = [
 
 const bridgeSlugs = ["bridge-stone", "bridge-stone-narrow", "bridge-wood", "bridge-wood-narrow"];
 
+const futureCityAssets = [
+  futureCity("building-1", "Future Building 1", "building", { w: 8, h: 8 }),
+  futureCity("building-2", "Future Building 2", "skyscraper", { w: 7, h: 8 }),
+  futureCity("building-3", "Future Building 3", "skyscraper", { w: 7, h: 8 }),
+  futureCity("building-4", "Future Building 4", "building", { w: 9, h: 5 }),
+  futureCity("building-5", "Future Building 5", "building", { w: 8, h: 8 }),
+  futureCity("building-6", "Future Building 6", "skyscraper", { w: 8, h: 7 }),
+  futureCity("building-7", "Future Building 7", "building", { w: 9, h: 5 }),
+  futureCity("building-8", "Future Building 8", "skyscraper", { w: 3, h: 8 }),
+  futureCity(
+    "street-light",
+    "Future Street Light",
+    "street-furniture",
+    { w: 1, h: 1 },
+    "object",
+    { objectType: "lamp", defaultHeight: 3, solidByDefault: true },
+  ),
+  futureCity(
+    "tube-bridge",
+    "Future Tube Bridge",
+    "bridge",
+    { w: 1, h: 8 },
+    "object",
+    { objectType: "bridge", defaultHeight: 1.2, solidByDefault: false },
+  ),
+];
+
 export const WORLD_ASSETS: readonly WorldAssetDefinition[] = [
   ...regularBuildings,
   ...skyscrapers,
@@ -184,6 +256,7 @@ export const WORLD_ASSETS: readonly WorldAssetDefinition[] = [
   ),
   ...fenceSlugs.map((slug) => nature(slug, "fence", "fence", { w: 1, h: 1 }, 1, true)),
   ...bridgeSlugs.map((slug) => nature(slug, "bridge", "bridge", { w: 2, h: 1 }, 0.5, false)),
+  ...futureCityAssets,
 ];
 
 export const WORLD_ASSET_BY_ID: ReadonlyMap<string, WorldAssetDefinition> = new Map(

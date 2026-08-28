@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ThreePreview from "./ThreePreview";
 import { WORLD_ASSET_BINDINGS } from "@/three/assets/catalog";
 import type { CameraView } from "@/three/CameraRig";
-import { WORLD_ASSETS, getWorldAsset, type AssetCategory } from "@/world/assetCatalog";
+import { ASSET_PACK_CREDITS, WORLD_ASSETS, getWorldAsset, type AssetCategory } from "@/world/assetCatalog";
 import type { Building, WorldMap, WorldObject } from "@/world/schema";
 import { townCentral } from "@/world/townCentral";
 import { cloneWorldMap, validateWorldMap } from "@/world/validation";
@@ -96,6 +96,7 @@ export default function WorldEditor() {
   const issues = useMemo(() => validateWorldMap(draft), [draft]);
   const errors = issues.filter((issue) => issue.severity === "error");
   const selectedAsset = getWorldAsset(assetId);
+  const selectedCredit = selectedAsset ? ASSET_PACK_CREDITS[selectedAsset.pack] : undefined;
   const filteredAssets = useMemo(() => {
     const query = search.trim().toLowerCase();
     return WORLD_ASSETS.filter((asset) =>
@@ -266,6 +267,14 @@ export default function WorldEditor() {
               {Array.from(new Set(WORLD_ASSETS.map((asset) => asset.category))).map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">Choose an asset, then click the map to place it. Gray assets are catalogued but wait for attachment anchors.</p>
+            {selectedCredit && (
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                <a href={selectedCredit.modelUrl} target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">Original model</a>
+                {" by "}<a href={selectedCredit.creatorUrl} target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">{selectedCredit.creator}</a>
+                {" · "}<a href={selectedCredit.licenseUrl} target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">{selectedCredit.license}</a>
+                {selectedCredit.modified ? " · modified for ItsArtC" : ""}
+              </p>
+            )}
           </div>
           <div className="grid flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto p-3">
             {filteredAssets.map((asset) => (
@@ -278,7 +287,7 @@ export default function WorldEditor() {
               >
                 <span className="mb-2 block h-7 w-7 rounded-md" style={{ background: ASSET_COLOURS[asset.category] }} />
                 <span className="block text-xs font-medium leading-tight">{asset.label}</span>
-                <span className="mt-1 block text-[10px] text-slate-500">{asset.category}</span>
+                <span className="mt-1 block text-[10px] text-slate-500">{asset.pack} · {asset.category}</span>
               </button>
             ))}
           </div>
