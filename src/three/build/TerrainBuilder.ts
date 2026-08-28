@@ -25,8 +25,23 @@ const TERRAIN_COLORS: Record<TerrainType, number> = {
 };
 
 /** Draw order offsets (in scene units) so coplanar quads don't z-fight. */
+const SURROUND_Y = -0.01;
 const BASE_Y = 0;
 const REGION_Y = 0.01;
+
+/**
+ * How far the ground continues past the authored map, in tiles.
+ *
+ * Without it, a player at the world edge sees the map floating in empty sky.
+ * The alternative — clamping the camera so the edge never enters frame — pins
+ * the player into a screen corner, which is worse. Continuing the ground keeps
+ * the player centred everywhere and reads as countryside beyond the town.
+ *
+ * It is deliberately a flatter, darker green than the play area so the authored
+ * world still reads as a distinct region rather than blending into the surround.
+ */
+const SURROUND_MARGIN = 26;
+const SURROUND_COLOR = 0x4d7a35;
 
 export interface TerrainBuild {
   group: THREE.Group;
@@ -76,6 +91,26 @@ export function buildTerrain(map: WorldMap): TerrainBuild {
     mesh.receiveShadow = true;
     return mesh;
   };
+
+  // Ground beyond the authored map, so the world has a horizon rather than an
+  // edge. Its own material — it is scenery, not a terrain type.
+  const surroundGeo = new THREE.PlaneGeometry(
+    map.widthTiles + SURROUND_MARGIN * 2,
+    map.heightTiles + SURROUND_MARGIN * 2,
+  );
+  surroundGeo.rotateX(-Math.PI / 2);
+  surroundGeo.translate(map.widthTiles / 2, SURROUND_Y, map.heightTiles / 2);
+  geometries.push(surroundGeo);
+  const surroundMat = new THREE.MeshStandardMaterial({
+    color: SURROUND_COLOR,
+    roughness: 1,
+    metalness: 0,
+  });
+  materials.push(surroundMat);
+  const surround = new THREE.Mesh(surroundGeo, surroundMat);
+  surround.name = "surround";
+  surround.receiveShadow = true;
+  group.add(surround);
 
   // Base terrain covering the whole world.
   group.add(

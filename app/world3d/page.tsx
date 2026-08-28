@@ -4,12 +4,12 @@ import dynamic from "next/dynamic";
 const ThreeCanvas = dynamic(() => import("@/three/ThreeCanvas"), { ssr: false });
 
 /**
- * Phase 1 of the Phaser -> Three.js migration: a PARALLEL route that renders
- * the same authored world data in 3D.
+ * The Phaser -> Three.js migration route: a PARALLEL route that renders the
+ * same authored world data in 3D, while /world continues to run the existing
+ * Phaser renderer untouched.
  *
- * Deliberately has no HUD, no networking and no player controls. Its only job
- * is to prove the world data maps correctly into a 3D scene while /world
- * continues to run the existing Phaser renderer untouched.
+ * Phase 2 adds a controllable player and a following camera. Still no HUD and
+ * no networking: collision lands in Phase 3, multiplayer and voice in Phase 4.
  */
 export default function World3DPage() {
   return (
@@ -23,7 +23,10 @@ export default function World3DPage() {
           </div>
           <div className="font-semibold">Town Central · 3D</div>
           <div className="mt-0.5 font-mono text-[9px] uppercase tracking-wider opacity-40">
-            phase 1 · no player · no network
+            phase 2 · player + camera · no collision
+          </div>
+          <div className="mt-1.5 border-t border-parchment/15 pt-1.5 font-mono text-[10px] opacity-60">
+            WASD / arrows / click to walk
           </div>
         </div>
       </div>
