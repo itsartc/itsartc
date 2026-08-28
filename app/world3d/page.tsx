@@ -8,8 +8,8 @@ const ThreeCanvas = dynamic(() => import("@/three/ThreeCanvas"), { ssr: false })
  * same authored world data in 3D, while /world continues to run the existing
  * Phaser renderer untouched.
  *
- * Phase 2 adds a controllable player and a following camera. Still no HUD and
- * no networking: collision lands in Phase 3, multiplayer and voice in Phase 4.
+ * Phase 3 adds authored collision and world bounds without changing /world.
+ * Multiplayer and voice remain on the later migration path.
  */
 export default function World3DPage() {
   return (
@@ -23,7 +23,7 @@ export default function World3DPage() {
           </div>
           <div className="font-semibold">Town Central · 3D</div>
           <div className="mt-0.5 font-mono text-[9px] uppercase tracking-wider opacity-40">
-            phase 2 · player + camera · no collision
+            phase 3 · player + camera + collision
           </div>
           <div className="mt-1.5 border-t border-parchment/15 pt-1.5 font-mono text-[10px] opacity-60">
             WASD / arrows / click to walk

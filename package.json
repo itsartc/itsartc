@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run src"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.45.4",
@@ -26,6 +27,7 @@
     "autoprefixer": "10.4.19",
     "postcss": "^8.5.23",
     "tailwindcss": "3.4.4",
-    "typescript": "5.5.3"
+    "typescript": "5.5.3",
+    "vitest": "^3.2.7"
   }
 }

@@ -124,9 +124,10 @@ export const townCentral: WorldMap = {
       id: "b-after-hours",
       name: "After Hours",
       districtId: "after-hours",
-      x: 4, y: 39, w: 8, h: 5,
+      // One full walkable row separates this venue from Builder Workshop.
+      x: 3, y: 41, w: 8, h: 5,
       wallColor: "#2f2b4a", roofColor: "#5b4b8a",
-      enterable: true, entrance: { x: 7, y: 39 }, interiorId: "int-after-hours",
+      enterable: true, entrance: { x: 7, y: 41 }, interiorId: "int-after-hours",
       status: "open", capacity: 60, sponsor: null,
     },
   ],
