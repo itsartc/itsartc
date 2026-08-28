@@ -2,10 +2,13 @@ import * as THREE from "three";
 import type { WorldMap } from "@/world/schema";
 import { buildTerrain } from "./build/TerrainBuilder";
 import { buildBuildings } from "./build/BuildingBuilder";
+import { buildObjects } from "./build/ObjectBuilder";
 import { buildPlayer } from "./build/PlayerBuilder";
 import { CameraRig, type CameraView } from "./CameraRig";
 import { Input } from "./Input";
 import { PlayerController } from "./PlayerController";
+import { AssetRegistry } from "./assets/AssetRegistry";
+import { WORLD_ASSET_BINDINGS, WORLD_GLBS } from "./assets/catalog";
 
 /**
  * Owns the Three.js scene, renderer, camera rig and animation loop for the 3D
@@ -13,12 +16,12 @@ import { PlayerController } from "./PlayerController";
  * the only place that touches renderer lifecycle.
  *
  * Deliberately thin on game rules: it wires input to a controller, the
- * controller to a mesh, and the mesh to the camera rig. Collision, networking
- * and proximity stay outside it so they can be shared with — or migrated from —
+ * controller to a mesh, and the mesh to the camera rig. Networking and
+ * proximity stay outside it so they can be shared with — or migrated from —
  * the existing 2D implementation.
  *
- * Phase 2 status: a controllable player and a following camera. No collision
- * (Phase 3), no multiplayer or voice (Phase 4).
+ * Phase 3 status: the controllable player now respects the authored collision
+ * map and world bounds. No multiplayer or voice yet (Phase 4).
  */
 
 /** Cap device pixel ratio: beyond 2 costs fill rate for no visible gain. */
@@ -55,6 +58,15 @@ export interface RendererDiagnostics {
     speed: number;
     moving: boolean;
     walkingToClick: boolean;
+    collision: {
+      solidTiles: number;
+      blockedX: boolean;
+      blockedZ: boolean;
+    };
+  };
+  assets: {
+    buildingErrors: readonly string[];
+    objectErrors: readonly string[];
   };
 }
 
@@ -68,6 +80,9 @@ export class WorldRenderer {
   private input: Input;
   private player: PlayerController;
   private playerMesh: THREE.Group;
+  private assets: AssetRegistry;
+  private buildingAssetErrors: readonly string[] = [];
+  private objectAssetErrors: readonly string[] = [];
 
   /** Ground plane used to turn a screen click into a world position. */
   private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -112,9 +127,17 @@ export class WorldRenderer {
     this.scene.add(terrain.group);
     this.disposers.push(terrain.dispose);
 
-    const buildings = buildBuildings(map);
+    this.assets = new AssetRegistry(WORLD_GLBS);
+    const buildings = buildBuildings(map, this.assets, WORLD_ASSET_BINDINGS.buildings);
+    this.buildingAssetErrors = buildings.assetErrors;
     this.scene.add(buildings.group);
     this.disposers.push(buildings.dispose);
+
+    const objects = buildObjects(map, this.assets, WORLD_ASSET_BINDINGS.objects);
+    this.objectAssetErrors = objects.assetErrors;
+    this.scene.add(objects.group);
+    this.disposers.push(objects.dispose);
+    this.disposers.push(() => this.assets.dispose());
 
     // --- Player -----------------------------------------------------------
     this.input = new Input(this.renderer.domElement);
@@ -257,6 +280,11 @@ export class WorldRenderer {
         speed: round(this.player.speed),
         moving: this.player.isMoving,
         walkingToClick: this.player.hasWalkTarget,
+        collision: this.player.collisionInfo,
+      },
+      assets: {
+        buildingErrors: this.buildingAssetErrors,
+        objectErrors: this.objectAssetErrors,
       },
     };
   }

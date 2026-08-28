@@ -93,6 +93,7 @@ The renderer is a "dumb" interpreter of that data.
 | Language         | TypeScript                                        |
 | App / UI         | Next.js (App Router) + React + Tailwind CSS       |
 | 2D world         | Phaser 3 (loaded only on `/world`, client-only)   |
+| 3D migration     | Three.js (parallel `/world3d` route)              |
 | World data       | Plain typed data modules (DB-backed in a later phase) |
 
 Placeholder pixel art is **generated in code** (no binary assets yet), so the
@@ -103,8 +104,17 @@ model later.
 app/                 # Next.js routes: / (landing), /world (the world)
 src/components/       # React overlay: WorldShell, ProfileCard
 src/game/            # Phaser: GameCanvas, WorldScene, render helpers, event bus
+src/three/           # Three.js renderer, movement, collision integration, GLB seam
 src/world/           # The world data model + authored world
 ```
+
+`/world3d` now has fixed-step movement, camera follow, world bounds, and
+renderer-neutral authored collision. `src/three/assets/` contains a cache,
+clone, transform, and disposal abstraction for curated GLB models. Founder Café
+is the first building slice, using one model from Kenney City Kit (Commercial)
+2.1. One tree and one rock from the older OBJ-based Nature Kit are converted to
+GLB and reused for their matching authored object types. Placeholder geometry
+remains the building fallback and no pack is bulk-imported.
 
 ---
 

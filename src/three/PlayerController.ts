@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { WorldMap } from "@/world/schema";
+import { WorldCollision } from "@/world/collision";
 import { SCALE, tileCenterToThree, threeToWorldPixel, type WorldPixel } from "./coords";
 import type { Input } from "./Input";
 import { PLAYER_RADIUS } from "./build/PlayerBuilder";
@@ -22,13 +23,8 @@ import { PLAYER_RADIUS } from "./build/PlayerBuilder";
  * accumulator is capped so a backgrounded tab resuming after ten seconds walks
  * a few frames, not six hundred.
  *
- * ## Collision
- *
- * There is none yet — walking through buildings is expected in Phase 2 and is
- * addressed in Phase 3, where the collision grid is extracted from WorldScene
- * so both renderers share one implementation. The only constraint here is the
- * world boundary, which exists so the player cannot walk off the map into
- * empty space and lose the world entirely.
+ * Collision is a small renderer-neutral circle-vs-tile solver. It uses the
+ * same authored rules as the Phaser route without introducing a physics engine.
  */
 
 /** Phaser's PLAYER_SPEED, in world pixels per second. Kept in sync deliberately. */
@@ -65,15 +61,22 @@ export class PlayerController {
 
   private readonly map: WorldMap;
   private readonly input: Input;
+  private readonly collision: WorldCollision;
 
   private velocity = new THREE.Vector2();
   private walkTarget: THREE.Vector2 | null = null;
   private accumulator = 0;
+  private blockedX = false;
+  private blockedZ = false;
 
   constructor(map: WorldMap, input: Input) {
     this.map = map;
     this.input = input;
+    this.collision = new WorldCollision(map);
     this.position.copy(tileCenterToThree(map.spawn.x, map.spawn.y));
+    if (this.collision.collidesCircle(this.position.x, this.position.z, PLAYER_RADIUS)) {
+      throw new Error(`World spawn (${map.spawn.x}, ${map.spawn.y}) overlaps collision`);
+    }
   }
 
   /** Speed in scene units per second. */
@@ -90,6 +93,14 @@ export class PlayerController {
     return this.walkTarget !== null;
   }
 
+  get collisionInfo() {
+    return {
+      solidTiles: this.collision.solidTileCount,
+      blockedX: this.blockedX,
+      blockedZ: this.blockedZ,
+    };
+  }
+
   /** Position in world pixels — the wire format, unchanged from the 2D client. */
   get worldPixel(): WorldPixel {
     return threeToWorldPixel(this.position);
@@ -100,7 +111,10 @@ export class PlayerController {
    * against the ground plane and passes the result here.
    */
   setWalkTarget(x: number, z: number) {
-    this.walkTarget = new THREE.Vector2(x, z);
+    this.walkTarget = new THREE.Vector2(
+      THREE.MathUtils.clamp(x, PLAYER_RADIUS, this.map.widthTiles - PLAYER_RADIUS),
+      THREE.MathUtils.clamp(z, PLAYER_RADIUS, this.map.heightTiles - PLAYER_RADIUS),
+    );
   }
 
   clearWalkTarget() {
@@ -132,10 +146,18 @@ export class PlayerController {
     if (delta.length() > maxDelta) delta.setLength(maxDelta);
     this.velocity.add(delta);
 
-    this.position.x += this.velocity.x * dt;
-    this.position.z += this.velocity.y * dt;
-
-    this.clampToWorld();
+    const move = this.collision.moveCircle(
+      this.position.x,
+      this.position.z,
+      this.velocity.x * dt,
+      this.velocity.y * dt,
+      PLAYER_RADIUS,
+    );
+    this.position.set(move.x, 0, move.z);
+    this.blockedX = move.blockedX;
+    this.blockedZ = move.blockedZ;
+    if (move.blockedX) this.velocity.x = 0;
+    if (move.blockedZ) this.velocity.y = 0;
 
     // Arriving cancels the walk target, so the player doesn't jitter on the spot.
     if (this.walkTarget) {
@@ -165,19 +187,6 @@ export class PlayerController {
     }
 
     return new THREE.Vector2(0, 0);
-  }
-
-  /**
-   * Keeps the player inside the map. This is a boundary, not collision:
-   * buildings are still walk-through until Phase 3.
-   */
-  private clampToWorld() {
-    const maxX = this.map.widthTiles - PLAYER_RADIUS;
-    const maxZ = this.map.heightTiles - PLAYER_RADIUS;
-    if (this.position.x < PLAYER_RADIUS) this.position.x = PLAYER_RADIUS;
-    if (this.position.z < PLAYER_RADIUS) this.position.z = PLAYER_RADIUS;
-    if (this.position.x > maxX) this.position.x = maxX;
-    if (this.position.z > maxZ) this.position.z = maxZ;
   }
 
   /**

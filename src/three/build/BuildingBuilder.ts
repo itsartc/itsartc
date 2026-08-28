@@ -1,16 +1,15 @@
 import * as THREE from "three";
 import type { WorldMap } from "@/world/schema";
 import { tileCornerToThree, tileCenterToThree } from "../coords";
+import type { AssetRegistry } from "../assets/AssetRegistry";
 
 /**
  * Builds each authored building as a simple extruded box on its exact tile
  * footprint, plus a small marker on the entrance tile.
  *
- * Phase 1 deliberately stops at boxes: the purpose is to prove footprints,
- * positions and orientation are correct, not to look good. Real façades,
- * signage and GLB kits arrive in the visual phase — and because callers only
- * receive an Object3D, swapping a box for a loaded model is a change inside
- * this file alone.
+ * Every building starts with a footprint-correct placeholder. A curated GLB
+ * may replace that visual asynchronously, but failure leaves the placeholder
+ * intact and never changes authored coordinates or collision.
  *
  * Height is expressed in scene units where 1 unit = 1 tile. Buildings are made
  * tall enough that their façades are clearly visible from the elevated camera,
@@ -25,17 +24,29 @@ const BUILDING_HEIGHT = 2.4;
 /** How far the entrance marker sits above ground, in scene units. */
 const ENTRANCE_MARKER_Y = 0.02;
 
+/** Breathing room between an asset and its authored collision footprint. */
+const MODEL_INSET = 0.18;
+
 export interface BuildingsBuild {
   group: THREE.Group;
+  ready: Promise<void>;
+  assetErrors: readonly string[];
   dispose: () => void;
 }
 
-export function buildBuildings(map: WorldMap): BuildingsBuild {
+export function buildBuildings(
+  map: WorldMap,
+  assets?: AssetRegistry,
+  bindings: Readonly<Partial<Record<string, string>>> = {},
+): BuildingsBuild {
   const group = new THREE.Group();
   group.name = "buildings";
 
   const geometries: THREE.BufferGeometry[] = [];
   const materials: THREE.Material[] = [];
+  const assetErrors: string[] = [];
+  const loading: Promise<void>[] = [];
+  let disposed = false;
 
   const hex = (s: string) => new THREE.Color(s);
 
@@ -52,6 +63,9 @@ export function buildBuildings(map: WorldMap): BuildingsBuild {
 
   for (const b of map.buildings) {
     const corner = tileCornerToThree(b.x, b.y);
+    const placeholder = new THREE.Group();
+    placeholder.name = `placeholder:${b.id}`;
+    group.add(placeholder);
 
     // Walls: a box sitting on the ground, covering the exact tile footprint.
     const geo = new THREE.BoxGeometry(b.w, BUILDING_HEIGHT, b.h);
@@ -74,7 +88,7 @@ export function buildBuildings(map: WorldMap): BuildingsBuild {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.userData.buildingId = b.id;
-    group.add(mesh);
+    placeholder.add(mesh);
 
     // Roof: a thin slab in the roof colour, so each building reads as a
     // distinct volume from above and the district accent is legible.
@@ -94,7 +108,7 @@ export function buildBuildings(map: WorldMap): BuildingsBuild {
     const roof = new THREE.Mesh(roofGeo, roofMat);
     roof.castShadow = true;
     roof.name = `roof:${b.id}`;
-    group.add(roof);
+    placeholder.add(roof);
 
     // Entrance marker: a lit pad on the door tile, proving entrance
     // coordinates survive the mapping.
@@ -105,13 +119,63 @@ export function buildBuildings(map: WorldMap): BuildingsBuild {
       pad.name = `entrance:${b.id}`;
       group.add(pad);
     }
+
+    const assetId = bindings[b.id];
+    if (assets && assetId) {
+      loading.push(
+        assets.instantiate(assetId)
+          .then((model) => {
+            if (disposed) return;
+            fitToFootprint(model, corner, b.w, b.h);
+            model.userData.buildingId = b.id;
+            group.add(model);
+            placeholder.visible = false;
+          })
+          .catch((error: unknown) => {
+            if (disposed) return;
+            assetErrors.push(`${b.id}: ${error instanceof Error ? error.message : String(error)}`);
+          }),
+      );
+    }
   }
 
   return {
     group,
+    ready: Promise.all(loading).then(() => undefined),
+    assetErrors,
     dispose: () => {
+      disposed = true;
       geometries.forEach((g) => g.dispose());
       materials.forEach((m) => m.dispose());
     },
   };
+}
+
+/** Uniformly fit a model to the XZ footprint and place its lowest point on the ground. */
+function fitToFootprint(
+  model: THREE.Group,
+  corner: THREE.Vector3,
+  width: number,
+  depth: number,
+) {
+  model.updateMatrixWorld(true);
+  const initialBounds = new THREE.Box3().setFromObject(model);
+  const size = initialBounds.getSize(new THREE.Vector3());
+  if (size.x <= 0 || size.y <= 0 || size.z <= 0) {
+    throw new Error("GLB has no measurable geometry");
+  }
+
+  const scale = Math.min(
+    (width - MODEL_INSET * 2) / size.x,
+    (depth - MODEL_INSET * 2) / size.z,
+  );
+  model.scale.multiplyScalar(scale);
+  model.updateMatrixWorld(true);
+
+  const bounds = new THREE.Box3().setFromObject(model);
+  const centre = bounds.getCenter(new THREE.Vector3());
+  model.position.x += corner.x + width / 2 - centre.x;
+  model.position.y -= bounds.min.y;
+  model.position.z += corner.z + depth / 2 - centre.z;
+  model.updateMatrixWorld(true);
 }
