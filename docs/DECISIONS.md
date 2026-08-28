@@ -57,3 +57,52 @@ Every other founding principle stands unchanged:
 
 Delivered by the Phaser → Three.js renderer migration, beginning with the
 parallel `/world3d` route (Phase 1).
+
+---
+
+## D-002 — Camera framing: whole-world fit → social range, yawed
+
+**Date:** 2026-08-28
+**Status:** Approved
+**Refines:** D-001 (does not supersede it)
+
+### Problem
+
+The first Phase 1 camera satisfied D-001 arithmetically — 50° pitch, real
+perspective projection — but still *read* as top-down when viewed. Three causes,
+in order of impact:
+
+1. **Whole-world framing.** The camera sat far enough back to fit all 64×46
+   tiles. A 2.4-unit building against a 64-unit-wide frame is ~3% of the view;
+   its façade was roughly 27 px tall on a 1280×800 screen. At that size a
+   perspective view and an orthographic top-down view are visually
+   indistinguishable. Framing, not angle, was the dominant factor.
+2. **Zero yaw.** The camera sat exactly on the world's Z axis, so every
+   axis-aligned building box presented a roof and exactly *one* flat face. One
+   face plus a roof is the classic 2.5D-sprite silhouette; two faces is what the
+   eye reads as a solid volume.
+3. **Flat lighting.** With a single key light and strong hemisphere fill, the
+   faces that were visible had too little tonal separation to describe form.
+
+### Decision
+
+The default camera frames a **social span (~32 tiles wide) around the spawn**,
+not the whole map. Whole-world framing is retained as a *diagnostic* only, at
+`/world3d?view=overview`, for comparing orientation against the 2D route.
+
+The camera is additionally **yawed 20° off the world axis** so every building
+shows two faces, and the key light is placed to the camera's left so those two
+faces read at different values.
+
+Yaw is small enough that map orientation is preserved — north stays up and every
+building remains in the same screen quadrant as on `/world`.
+
+### Constraints (unchanged from D-001)
+
+Pitch stays within 45–55° (now 48°). No free orbit, no user-controlled rotation,
+no over-the-shoulder framing, never straight down. Pitch and yaw are constants.
+
+### Non-goals
+
+This changes camera and framing only. World coordinates, world data, building
+geometry, networking and the wire protocol are untouched.

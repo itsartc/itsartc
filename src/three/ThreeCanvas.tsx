@@ -28,7 +28,15 @@ export default function ThreeCanvas() {
         const { WorldRenderer } = await import("./WorldRenderer");
         if (cancelled || !containerRef.current) return;
 
-        const instance = new WorldRenderer(containerRef.current, townCentral);
+        // `?view=overview` frames the whole map. Diagnostic only: it exists so
+        // orientation can be compared against the 2D route. The default is the
+        // product camera.
+        const view =
+          new URLSearchParams(window.location.search).get("view") === "overview"
+            ? ("overview" as const)
+            : ("social" as const);
+
+        const instance = new WorldRenderer(containerRef.current, townCentral, { view });
         renderer = instance;
 
         // Exposed for smoke tests and manual diagnostics in the console.
