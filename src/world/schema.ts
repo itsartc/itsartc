@@ -87,7 +87,10 @@ export interface Building {
 
 export type ObjectType =
   | "tree"
+  | "blossom"
   | "bush"
+  | "flowers"
+  | "rock"
   | "bench"
   | "lamp"
   | "fountain"
@@ -106,6 +109,52 @@ export interface WorldObject {
   label?: string;
   /** Whether this object blocks movement. */
   solid?: boolean;
+}
+
+/**
+ * A named sub-area *inside* a venue or district (Phase 1B geography hierarchy +
+ * Phase 1D subcategories).
+ *
+ * The world hierarchy is: World → District → Venue (Building) → **Sub-area** →
+ * Interior → Room. A sub-area is a physical place — a seating cluster, a booth,
+ * a lounge, a stage apron — not a menu item. When it carries a `subcategory`
+ * (e.g. "AI", "Fintech", "Raising Now") it represents that category as an actual
+ * spot people gather, exactly as the product requires.
+ */
+export interface SubArea {
+  id: string;
+  name: string;
+  /** The district this sub-area sits in. */
+  districtId: string;
+  /** The venue (building id) it belongs to, or null for an open-world cluster. */
+  venueId: string | null;
+  /** Optional interior id, once the sub-area lives inside a building interior (Phase 1F). */
+  interiorId?: string;
+  /** Subcategory tag this area physically represents (Phase 1D). */
+  subcategory?: string;
+  /** Footprint in tiles. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Label anchor in tiles; defaults to the sub-area centre. */
+  labelX?: number;
+  labelY?: number;
+  /** What kind of space this is, so the renderer/editor can treat it appropriately. */
+  kind?: "seating" | "booth" | "lounge" | "stage" | "section" | "garden";
+  accent?: string;
+}
+
+/**
+ * A room inside a building interior (Phase 1B hierarchy leaf; interior maps
+ * themselves arrive in Phase 1F). Modeled now so the hierarchy is complete and
+ * the admin editor has a target to populate.
+ */
+export interface Room {
+  id: string;
+  name: string;
+  interiorId: string;
+  subcategory?: string;
 }
 
 /** A special zone: event area, voice radius, ad activation, closed area (Phase 1J). */
@@ -156,6 +205,10 @@ export interface WorldMap {
   terrain: TerrainRegion[];
   districts: District[];
   buildings: Building[];
+  /** Named sub-areas within venues/districts (Phase 1B/1D). */
+  subAreas?: SubArea[];
+  /** Rooms within building interiors (Phase 1B; interiors themselves are Phase 1F). */
+  rooms?: Room[];
   objects: WorldObject[];
   people: PersonSeed[];
   zones: Zone[];

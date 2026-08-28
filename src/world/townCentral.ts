@@ -158,6 +158,33 @@ export const townCentral: WorldMap = {
     // District signage
     { id: "o-sign-ai", type: "sign", x: 47, y: 13, label: "AI District" },
     { id: "o-sign-hire", type: "sign", x: 50, y: 21, label: "Hiring Hall" },
+
+    // --- Decorative richness (graphics pass 1) ---
+    // Cherry blossoms — a soft focal point by the garden pond & square edges
+    { id: "o-blossom-1", type: "blossom", x: 5, y: 28, solid: true },
+    { id: "o-blossom-2", type: "blossom", x: 24, y: 30, solid: true },
+    { id: "o-blossom-3", type: "blossom", x: 40, y: 16, solid: true },
+    // Flower beds
+    { id: "o-flowers-1", type: "flowers", x: 7, y: 29 },
+    { id: "o-flowers-2", type: "flowers", x: 9, y: 28 },
+    { id: "o-flowers-3", type: "flowers", x: 24, y: 17 },
+    { id: "o-flowers-4", type: "flowers", x: 39, y: 28 },
+    { id: "o-flowers-5", type: "flowers", x: 40, y: 30 },
+    // Rocks near the water & sand
+    { id: "o-rock-1", type: "rock", x: 3, y: 24, solid: true },
+    { id: "o-rock-2", type: "rock", x: 9, y: 24, solid: true },
+    { id: "o-rock-3", type: "rock", x: 13, y: 41, solid: true },
+    // Café forecourt + plaza conversation tables (anchor the sub-areas)
+    { id: "o-table-ai", type: "table", x: 8, y: 13 },
+    { id: "o-table-fin", type: "table", x: 17, y: 13 },
+    { id: "o-table-sq1", type: "table", x: 28, y: 19 },
+    { id: "o-table-sq2", type: "table", x: 35, y: 19 },
+    { id: "o-table-sq3", type: "table", x: 28, y: 26 },
+    { id: "o-table-sq4", type: "table", x: 35, y: 26 },
+    // A few more street lamps for warm dusk glow
+    { id: "o-lamp-5", type: "lamp", x: 16, y: 21, solid: true },
+    { id: "o-lamp-6", type: "lamp", x: 47, y: 21, solid: true },
+    { id: "o-lamp-7", type: "lamp", x: 31, y: 12, solid: true },
   ],
 
   people: [
@@ -223,5 +250,30 @@ export const townCentral: WorldMap = {
     { id: "z-event-stage", type: "event", x: 27, y: 2, w: 10, h: 6, label: "Event Hall stage" },
     { id: "z-cafe-voice", type: "voice", x: 7, y: 6, w: 9, h: 6, label: "Founder Café" },
     { id: "z-cafe-prespresented", type: "ad", x: 7, y: 5, w: 9, h: 1, label: "Café banner (available)" },
+  ],
+
+  // Phase 1B/1D — sub-areas: subcategories as physical spots people gather.
+  // Founder Café subcategories live as forecourt seating clusters beside the
+  // café; the Town Square plaza carries open, cross-cutting conversation
+  // clusters (venueId null) like the ones in the product mockup.
+  subAreas: [
+    { id: "sa-cafe-general", name: "General", districtId: "founder-cafe", venueId: "b-founder-cafe", subcategory: "General", kind: "seating", x: 4, y: 13, w: 3, h: 2, accent: "#e3b341" },
+    { id: "sa-cafe-ai", name: "AI Table", districtId: "founder-cafe", venueId: "b-founder-cafe", subcategory: "AI", kind: "seating", x: 7, y: 13, w: 3, h: 2, accent: "#a371f7" },
+    { id: "sa-cafe-saas", name: "SaaS Table", districtId: "founder-cafe", venueId: "b-founder-cafe", subcategory: "SaaS", kind: "seating", x: 13, y: 13, w: 3, h: 2, accent: "#5b9bd5" },
+    { id: "sa-cafe-fintech", name: "Fintech Table", districtId: "founder-cafe", venueId: "b-founder-cafe", subcategory: "Fintech", kind: "seating", x: 16, y: 13, w: 3, h: 2, accent: "#3fb950" },
+    { id: "sa-cafe-raising", name: "Raising Now", districtId: "founder-cafe", venueId: "b-founder-cafe", subcategory: "Raising Now", kind: "booth", x: 4, y: 15, w: 3, h: 2, accent: "#d9a441" },
+    { id: "sa-cafe-cofounder", name: "Cofounder Search", districtId: "founder-cafe", venueId: "b-founder-cafe", subcategory: "Cofounder Search", kind: "booth", x: 16, y: 15, w: 3, h: 2, accent: "#e06c9f" },
+
+    { id: "sa-sq-open", name: "Open to Chat", districtId: "town-square", venueId: null, subcategory: "Open to chat", kind: "seating", x: 27, y: 19, w: 3, h: 2, accent: "#3fb950" },
+    { id: "sa-sq-ai", name: "AI Circle", districtId: "town-square", venueId: null, subcategory: "AI", kind: "seating", x: 34, y: 19, w: 3, h: 2, accent: "#a371f7" },
+    { id: "sa-sq-invest", name: "Investor Corner", districtId: "town-square", venueId: null, subcategory: "Investing", kind: "lounge", x: 27, y: 26, w: 3, h: 2, accent: "#d9a441" },
+    { id: "sa-sq-hiring", name: "Hiring Corner", districtId: "town-square", venueId: null, subcategory: "Hiring", kind: "seating", x: 34, y: 26, w: 3, h: 2, accent: "#5b9bd5" },
+  ],
+
+  // Phase 1B — rooms modeled inside the café interior (interior maps land in 1F).
+  rooms: [
+    { id: "rm-cafe-main", name: "Main Floor", interiorId: "int-founder-cafe", subcategory: "General" },
+    { id: "rm-cafe-upstairs-ai", name: "Upstairs — AI", interiorId: "int-founder-cafe", subcategory: "AI" },
+    { id: "rm-cafe-investor", name: "Investor Corner", interiorId: "int-founder-cafe", subcategory: "Investing" },
   ],
 };

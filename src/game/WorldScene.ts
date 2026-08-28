@@ -6,6 +6,8 @@ import {
   paintTerrain,
   paintBuildings,
   paintObject,
+  paintSubArea,
+  paintAmbience,
   ensureCharacterTexture,
 } from "./render";
 import { getLocalIdentity, type PlayerIdentity } from "@/net/identity";
@@ -76,8 +78,10 @@ export class WorldScene extends Phaser.Scene {
     const worldH = map.heightTiles * ts;
 
     paintTerrain(this, map);
+    for (const sa of map.subAreas ?? []) paintSubArea(this, map, sa);
     paintBuildings(this, map);
     for (const o of map.objects) paintObject(this, map, o);
+    paintAmbience(this, map);
 
     this.buildCollision();
 
