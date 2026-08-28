@@ -20,6 +20,10 @@ const TERRAIN_COLOURS = {
   plaza: "#cbd0d7",
   water: "#3f97cf",
   sand: "#e0cd93",
+  wood: "#b5854f",
+  carpet: "#a15c58",
+  tile: "#dfe4e8",
+  concrete: "#9aa0a6",
 };
 
 const ASSET_COLOURS: Record<AssetCategory, string> = {
