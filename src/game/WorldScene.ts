@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { WorldMap, PersonSeed } from "@/world/schema";
+import type { WorldMap, PersonSeed, Interior } from "@/world/schema";
 import { INTENTS } from "@/world/schema";
 import { bus, type NearPerson } from "./bus";
 import {
@@ -8,10 +8,12 @@ import {
   paintObject,
   paintSubArea,
   paintAmbience,
+  paintInteriorShell,
   ensureCharacterTexture,
 } from "./render";
 import { getLocalIdentity, type PlayerIdentity } from "@/net/identity";
 import { joinWorld, type RemotePlayerState } from "@/net/presence";
+import { findInterior } from "@/world/interiors";
 import { createVoice, type VoiceManager } from "@/net/voice";
 import { captureError, logEvent } from "@/observability/monitor";
 
@@ -38,6 +40,8 @@ interface RemotePlayer {
   /** Interpolation target in world pixels (last position we heard). */
   target: { x: number; y: number };
   flipX: boolean;
+  /** Which interior they are inside, or null outdoors (Phase 1F). */
+  interiorId: string | null;
 }
 
 export class WorldScene extends Phaser.Scene {
@@ -47,6 +51,24 @@ export class WorldScene extends Phaser.Scene {
   private keys!: Record<"W" | "A" | "S" | "D", Phaser.Input.Keyboard.Key>;
   private solid: boolean[][] = [];
   private npcs: NpcState[] = [];
+
+  /**
+   * The place the player is currently standing in: an interior, or null for the
+   * outdoor world. Everything that reads the world grid \u2014 collision, NPCs,
+   * camera bounds, remote visibility \u2014 goes through the active place, so an
+   * interior is a first-class location rather than an overlay on the map.
+   */
+  private interior: Interior | null = null;
+
+  /** Display objects belonging to the active place, destroyed on transition. */
+  private placeGfx: Phaser.GameObjects.GameObject[] = [];
+
+  /** Active place dimensions in tiles \u2014 an interior is not the world's size. */
+  private placeW = 0;
+  private placeH = 0;
+
+  /** Where to put the player back down when they leave an interior. */
+  private returnTo: { x: number; y: number } | null = null;
   private walkTarget: { x: number; y: number } | null = null;
   private lastDistrict: string | null = null;
   private lastEntrance: string | null = null;
@@ -77,13 +99,7 @@ export class WorldScene extends Phaser.Scene {
     const worldW = map.widthTiles * ts;
     const worldH = map.heightTiles * ts;
 
-    paintTerrain(this, map);
-    for (const sa of map.subAreas ?? []) paintSubArea(this, map, sa);
-    paintBuildings(this, map);
-    for (const o of map.objects) paintObject(this, map, o);
-    paintAmbience(this, map);
-
-    this.buildCollision();
+    this.paintOutdoor();
 
     // Player — appearance comes from this browser's live guest identity, so
     // other players see the same avatar we broadcast.
@@ -111,14 +127,10 @@ export class WorldScene extends Phaser.Scene {
     this.player.setData("tag", tag);
 
     // Collisions
-    this.physics.add.collider(this.player, this.solidGroup);
-
-    // NPCs
-    this.spawnNpcs();
+    this.solidCollider = this.physics.add.collider(this.player, this.solidGroup);
 
     // Camera
-    this.physics.world.setBounds(0, 0, worldW, worldH);
-    this.cameras.main.setBounds(0, 0, worldW, worldH);
+    this.applyPlaceBounds(worldW, worldH);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
     this.cameras.main.setZoom(1.5);
     this.cameras.main.setBackgroundColor("#3a5a2a");
@@ -128,6 +140,8 @@ export class WorldScene extends Phaser.Scene {
     this.keys = this.input.keyboard!.addKeys("W,A,S,D") as typeof this.keys;
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => this.onPointerDown(p));
+
+    this.busOffs.push(bus.on("interior:leave", () => this.exitInterior()));
 
     this.startNetwork();
     this.startVoice();
@@ -153,10 +167,15 @@ export class WorldScene extends Phaser.Scene {
       this.net = joinWorld(
         this.map.id,
         this.identity,
-        () => ({ x: this.player.x, y: this.player.y, flipX: this.lastFlipX }),
+        () => ({
+          x: this.player.x,
+          y: this.player.y,
+          flipX: this.lastFlipX,
+          interiorId: this.interior?.id ?? null,
+        }),
         {
           onJoin: (s) => this.addRemote(s),
-          onMove: (m) => this.moveRemote(m.id, m.x, m.y, m.flipX),
+          onMove: (m) => this.moveRemote(m.id, m.x, m.y, m.flipX, m.interiorId ?? null),
           onLeave: (id) => this.removeRemote(id),
           onCount: (c) => bus.emit("presence:count", c),
           onStatus: (s) => bus.emit("net:status", s),
@@ -199,7 +218,7 @@ export class WorldScene extends Phaser.Scene {
   private addRemote(s: RemotePlayerState) {
     if (this.remotes.has(s.id)) {
       // Re-sync of an existing peer: just refresh their target.
-      this.moveRemote(s.id, s.x, s.y, s.flipX);
+      this.moveRemote(s.id, s.x, s.y, s.flipX, s.interiorId ?? null);
       return;
     }
     const key = `remote-${s.id}`;
@@ -224,18 +243,37 @@ export class WorldScene extends Phaser.Scene {
       sprite, label,
       target: { x: s.x, y: s.y },
       flipX: s.flipX,
+      interiorId: s.interiorId ?? null,
     });
 
     // Open a voice connection to this player (audio stays silent until they're near).
     this.voice?.addPeer(s.id);
   }
 
-  private moveRemote(id: string, x: number, y: number, flipX: boolean) {
+  private moveRemote(
+    id: string,
+    x: number,
+    y: number,
+    flipX: boolean,
+    interiorId: string | null,
+  ) {
     const r = this.remotes.get(id);
     if (!r) return;
+
+    // Crossing a threshold is a teleport, not a walk: snap rather than
+    // interpolating a peer across the room they just left.
+    if (r.interiorId !== interiorId) {
+      r.interiorId = interiorId;
+      r.sprite.setPosition(x, y);
+    }
     r.target.x = x;
     r.target.y = y;
     r.flipX = flipX;
+  }
+
+  /** True when a remote player is standing in the same place as us. */
+  private sharesPlace(r: RemotePlayer): boolean {
+    return (r.interiorId ?? null) === (this.interior?.id ?? null);
   }
 
   private removeRemote(id: string) {
@@ -249,6 +287,13 @@ export class WorldScene extends Phaser.Scene {
 
   private updateRemotes() {
     for (const r of this.remotes.values()) {
+      // People in another interior are elsewhere, not invisible neighbours:
+      // hide them and skip their motion entirely.
+      const here = this.sharesPlace(r);
+      r.sprite.setVisible(here);
+      r.label.setVisible(here);
+      if (!here) continue;
+
       // Smoothly interpolate toward the last position we heard.
       r.sprite.x += (r.target.x - r.sprite.x) * 0.25;
       r.sprite.y += (r.target.y - r.sprite.y) * 0.25;
@@ -258,11 +303,188 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+
+  // --- Places: the outdoor world, or a building interior -------------------
+
+  /**
+   * Records every display object a paint pass creates, so leaving a place can
+   * destroy exactly what that place added and nothing else.
+   *
+   * Diffing the display list is deliberate: the alternative is threading a
+   * container or a return value through every painter in render.ts, which would
+   * couple the renderer to the transition mechanism for no gain.
+   */
+  private paintPlace(paint: () => void) {
+    const before = new Set(this.children.list);
+    paint();
+    this.placeGfx = this.children.list.filter((o) => !before.has(o));
+  }
+
+  private paintOutdoor() {
+    const map = this.map;
+    this.paintPlace(() => {
+      paintTerrain(this, map);
+      for (const sa of map.subAreas ?? []) paintSubArea(this, map, sa);
+      paintBuildings(this, map);
+      for (const o of map.objects) paintObject(this, map, o);
+      paintAmbience(this, map);
+    });
+    this.placeW = map.widthTiles;
+    this.placeH = map.heightTiles;
+    this.buildOutdoorCollision();
+    this.spawnPeople(map.people);
+  }
+
+  private paintInterior(interior: Interior) {
+    this.paintPlace(() => {
+      paintTerrain(this, interior);
+      for (const sa of interior.subAreas ?? []) paintSubArea(this, interior, sa);
+      paintInteriorShell(this, interior);
+      for (const o of interior.objects) paintObject(this, interior, o);
+    });
+    this.placeW = interior.widthTiles;
+    this.placeH = interior.heightTiles;
+    this.buildInteriorCollision(interior);
+    this.spawnPeople(interior.people ?? []);
+  }
+
+  /** Destroys everything belonging to the place we are leaving. */
+  private teardownPlace() {
+    this.placeGfx.forEach((o) => o.destroy());
+    this.placeGfx = [];
+
+    for (const n of this.npcs) {
+      n.sprite.destroy();
+      n.label.destroy();
+    }
+    this.npcs = [];
+    this.lastNearKey = "";
+
+    this.solidCollider?.destroy();
+    this.solidCollider = null;
+    this.solidGroup?.clear(true, true);
+    this.solidGroup?.destroy();
+  }
+
+  private applyPlaceBounds(width: number, height: number) {
+    this.physics.world.setBounds(0, 0, width, height);
+    this.cameras.main.setBounds(0, 0, width, height);
+    // An interior is smaller than the viewport, so whatever sits beyond its
+    // walls is visible. Grass green there would read as a hole in the building.
+    this.cameras.main.setBackgroundColor(this.interior ? "#241c15" : "#3a5a2a");
+  }
+
+  /**
+   * Moves the player into a building interior.
+   *
+   * The outdoor world is torn down rather than hidden. An interior is its own
+   * surface with its own dimensions and its own collision grid, so keeping the
+   * outdoor grid alive underneath would mean two sources of truth for "is this
+   * tile solid".
+   */
+  private enterInterior(interior: Interior) {
+    if (this.interior?.id === interior.id) return;
+
+    // Remember the tile just outside the door so leaving puts them back where
+    // they walked in from, not on top of the entrance trigger.
+    const building = this.map.buildings.find((b) => b.id === interior.buildingId);
+    const ts = this.map.tileSize;
+    if (building?.entrance) {
+      this.returnTo = {
+        x: building.entrance.x * ts + ts / 2,
+        y: (building.entrance.y + 1) * ts + ts / 2,
+      };
+    }
+
+    this.teardownPlace();
+    this.interior = interior;
+    this.paintInterior(interior);
+
+    this.applyPlaceBounds(
+      interior.widthTiles * interior.tileSize,
+      interior.heightTiles * interior.tileSize,
+    );
+    this.solidCollider = this.physics.add.collider(this.player, this.solidGroup);
+
+    this.placePlayerAtTile(interior.spawn.x, interior.spawn.y, interior.tileSize);
+    this.walkTarget = null;
+    this.lastEntrance = null;
+    this.lastDistrict = null;
+
+    logEvent("interior_entered", { interior: interior.id });
+    bus.emit("interior:change", {
+      id: interior.id,
+      name: interior.name,
+      buildingId: interior.buildingId,
+    });
+  }
+
+  /** Returns the player to the outdoor world, at the door they came in by. */
+  private exitInterior() {
+    if (!this.interior) return;
+    const left = this.interior;
+
+    this.teardownPlace();
+    this.interior = null;
+    this.paintOutdoor();
+
+    const ts = this.map.tileSize;
+    this.applyPlaceBounds(this.map.widthTiles * ts, this.map.heightTiles * ts);
+    this.solidCollider = this.physics.add.collider(this.player, this.solidGroup);
+
+    const back = this.returnTo ?? {
+      x: this.map.spawn.x * ts + ts / 2,
+      y: this.map.spawn.y * ts + ts / 2,
+    };
+    this.player.setPosition(back.x, back.y);
+    (this.player.body as Phaser.Physics.Arcade.Body).reset(back.x, back.y);
+    this.walkTarget = null;
+    // Suppress the entrance trigger we are standing next to, so stepping out
+    // doesn't immediately walk us back in.
+    this.lastEntrance = left.buildingId;
+    this.lastDistrict = null;
+
+    logEvent("interior_left", { interior: left.id });
+    bus.emit("interior:change", null);
+  }
+
+  private placePlayerAtTile(tx: number, ty: number, tileSize: number) {
+    const px = tx * tileSize + tileSize / 2;
+    const py = ty * tileSize + tileSize / 2;
+    this.player.setPosition(px, py);
+    (this.player.body as Phaser.Physics.Arcade.Body).reset(px, py);
+  }
+
+  /** The place the player is standing in, as a paintable surface. */
+  private get surface() {
+    return this.interior ?? this.map;
+  }
+
   // --- Collision -----------------------------------------------------------
 
   private solidGroup!: Phaser.Physics.Arcade.StaticGroup;
+  private solidCollider: Phaser.Physics.Arcade.Collider | null = null;
 
-  private buildCollision() {
+  /** Solid tiles for a building interior: its walls, plus any solid props. */
+  private buildInteriorCollision(interior: Interior) {
+    const W = interior.widthTiles;
+    const H = interior.heightTiles;
+    this.solid = Array.from({ length: H }, () => Array<boolean>(W).fill(false));
+
+    for (const w of interior.walls) {
+      for (let y = w.y; y < w.y + w.h; y++)
+        for (let x = w.x; x < w.x + w.w; x++) this.mark(x, y);
+    }
+    for (const o of interior.objects) {
+      if (o.solid) this.mark(o.x, o.y);
+    }
+    // The exit tile always stays walkable, whatever a wall rectangle says.
+    this.solid[interior.exit.y][interior.exit.x] = false;
+
+    this.rasterizeSolids(interior.tileSize);
+  }
+
+  private buildOutdoorCollision() {
     const map = this.map;
     const W = map.widthTiles;
     const H = map.heightTiles;
@@ -292,9 +514,14 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    // Merge row-runs into static bodies
+    this.rasterizeSolids(map.tileSize);
+  }
+
+  /** Merges the boolean grid into row-run static bodies. */
+  private rasterizeSolids(ts: number) {
+    const W = this.placeW;
+    const H = this.placeH;
     this.solidGroup = this.physics.add.staticGroup();
-    const ts = map.tileSize;
     for (let y = 0; y < H; y++) {
       let runStart = -1;
       for (let x = 0; x <= W; x++) {
@@ -315,21 +542,19 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private mark(x: number, y: number) {
-    if (y >= 0 && y < this.map.heightTiles && x >= 0 && x < this.map.widthTiles)
-      this.solid[y][x] = true;
+    if (y >= 0 && y < this.placeH && x >= 0 && x < this.placeW) this.solid[y][x] = true;
   }
 
   private isSolidTile(tx: number, ty: number): boolean {
-    if (ty < 0 || ty >= this.map.heightTiles || tx < 0 || tx >= this.map.widthTiles)
-      return true;
+    if (ty < 0 || ty >= this.placeH || tx < 0 || tx >= this.placeW) return true;
     return this.solid[ty][tx];
   }
 
   // --- NPCs ----------------------------------------------------------------
 
-  private spawnNpcs() {
+  private spawnPeople(people: PersonSeed[]) {
     const ts = this.map.tileSize;
-    for (const seed of this.map.people) {
+    for (const seed of people) {
       ensureCharacterTexture(this, `char-${seed.id}`, seed.palette);
       const sprite = this.add.sprite(
         seed.x * ts + ts / 2, seed.y * ts + ts / 2, `char-${seed.id}`,
@@ -502,6 +727,12 @@ export class WorldScene extends Phaser.Scene {
     // silence at PROXIMITY_TILES.
     let audible = 0;
     for (const [id, r] of this.remotes) {
+      // Someone in another interior is not nearby, however close their
+      // coordinates happen to look.
+      if (!this.sharesPlace(r)) {
+        this.voice?.setPeerVolume(id, 0);
+        continue;
+      }
       const d = Math.hypot(r.sprite.x - this.player.x, r.sprite.y - this.player.y) / ts;
       if (d <= PROXIMITY_TILES) {
         near.push({ person: r.seed, distanceTiles: Math.round(d * 10) / 10 });
@@ -532,6 +763,17 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private updateDistrict() {
+    // Inside a building the interior IS the location; the outdoor district
+    // labels are meaningless there.
+    if (this.interior) {
+      const key = `interior:${this.interior.id}`;
+      if (key !== this.lastDistrict) {
+        this.lastDistrict = key;
+        bus.emit("district:change", { id: this.interior.districtId, name: this.interior.name });
+      }
+      return;
+    }
+
     const ts = this.map.tileSize;
     const ptx = this.player.x / ts;
     const pty = this.player.y / ts;
@@ -548,16 +790,35 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Walking onto a door tile moves the player between places.
+   *
+   * Outdoors that means a building entrance; inside it means the interior's
+   * exit tile. `lastEntrance` debounces the trigger so standing on the tile
+   * fires once rather than every frame.
+   */
   private updateEntrance() {
     const ts = this.map.tileSize;
     const ptx = Math.floor(this.player.x / ts);
     const pty = Math.floor(this.player.y / ts);
+
+    if (this.interior) {
+      if (ptx === this.interior.exit.x && pty === this.interior.exit.y) this.exitInterior();
+      return;
+    }
+
     let onEntrance: string | null = null;
     for (const b of this.map.buildings) {
       if (b.enterable && b.entrance && b.entrance.x === ptx && b.entrance.y === pty) {
         onEntrance = b.id;
         if (this.lastEntrance !== b.id) {
           bus.emit("building:enter", { id: b.id, name: b.name, interiorId: b.interiorId });
+          const inside = findInterior(b.interiorId);
+          if (inside) {
+            this.lastEntrance = b.id;
+            this.enterInterior(inside);
+            return;
+          }
         }
         break;
       }

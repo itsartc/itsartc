@@ -10,6 +10,17 @@ export interface RemotePlayerState extends PlayerIdentity {
 
   /** Facing left (sprite flipped). */
   flipX: boolean;
+
+  /**
+   * The building interior this player is inside, or null/undefined outdoors
+   * (Phase 1F).
+   *
+   * Added as an optional field so it is backward compatible: a client that
+   * predates interiors simply omits it and is treated as outdoors, which is
+   * exactly where it is. Peers only render each other when this matches, so an
+   * interior is a real, separate room rather than a shared overlay.
+   */
+  interiorId?: string | null;
 }
 
 /** A lightweight position update carried over broadcast (high frequency). */
@@ -18,6 +29,8 @@ export interface MoveUpdate {
   x: number;
   y: number;
   flipX: boolean;
+  /** Which interior the player is in, or null outdoors (Phase 1F). */
+  interiorId?: string | null;
 }
 
 interface JoinMessage extends RemotePlayerState {
@@ -95,7 +108,12 @@ const CLEANUP_INTERVAL_MS = 1000;
 export function joinWorld(
   worldId: string,
   me: PlayerIdentity,
-  getPosition: () => { x: number; y: number; flipX: boolean },
+  getPosition: () => {
+    x: number;
+    y: number;
+    flipX: boolean;
+    interiorId?: string | null;
+  },
   cb: PresenceCallbacks,
 ) {
   const playerId = me.id;
@@ -127,6 +145,7 @@ export function joinWorld(
       x: Math.round(pos.x),
       y: Math.round(pos.y),
       flipX: pos.flipX,
+      interiorId: pos.interiorId ?? null,
     };
   }
 
@@ -285,6 +304,7 @@ export function joinWorld(
         x: move.x,
         y: move.y,
         flipX: move.flipX,
+        interiorId: move.interiorId ?? null,
       });
 
       cb.onMove(move);
@@ -411,6 +431,7 @@ export function joinWorld(
         x: Math.round(pos.x),
         y: Math.round(pos.y),
         flipX: pos.flipX,
+        interiorId: pos.interiorId ?? null,
       } satisfies MoveUpdate,
     });
   }

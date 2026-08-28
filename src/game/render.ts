@@ -1,5 +1,12 @@
 import Phaser from "phaser";
-import type { WorldMap, WorldObject, TerrainType, SubArea } from "@/world/schema";
+import type {
+  WorldMap,
+  WorldObject,
+  TerrainType,
+  SubArea,
+  TerrainSurface,
+  Interior,
+} from "@/world/schema";
 
 /**
  * Renderer for the world.
@@ -19,6 +26,11 @@ const TERRAIN_COLORS: Record<TerrainType, number> = {
   plaza: 0xd6c69a,
   water: 0x3f97cf,
   sand: 0xe0cd93,
+  // Indoor floors (Phase 1F interiors).
+  wood: 0xb5854f,
+  carpet: 0xa15c58,
+  tile: 0xdfe4e8,
+  concrete: 0x9aa0a6,
 };
 
 /** Detail tones layered on top of each terrain type for texture. */
@@ -28,6 +40,10 @@ const TERRAIN_DETAIL: Partial<Record<TerrainType, { light: number; dark: number 
   path: { light: 0xd0b07e, dark: 0xa8894f },
   plaza: { light: 0xe4d6ad, dark: 0xbcac80 },
   sand: { light: 0xeeddab, dark: 0xcbb679 },
+  wood: { light: 0xc79a63, dark: 0x94693b },
+  carpet: { light: 0xb56d68, dark: 0x854a47 },
+  tile: { light: 0xeef2f5, dark: 0xc2c9cf },
+  concrete: { light: 0xadb3b8, dark: 0x82888e },
 };
 
 // Deterministic value hash → [0,1); keeps terrain texture stable across renders.
@@ -38,7 +54,7 @@ function hash(x: number, y: number, s = 0): number {
 }
 
 /** Build a per-cell terrain-type grid from base + painted regions (last wins). */
-function terrainGrid(map: WorldMap): TerrainType[][] {
+function terrainGrid(map: TerrainSurface): TerrainType[][] {
   const grid: TerrainType[][] = Array.from({ length: map.heightTiles }, () =>
     Array<TerrainType>(map.widthTiles).fill(map.baseTerrain),
   );
@@ -56,7 +72,7 @@ function terrainGrid(map: WorldMap): TerrainType[][] {
  * Paints terrain once into static Graphics: base fills, per-tile texture, water
  * ripples + shorelines, plaza seams. Drawn on create(), never per frame.
  */
-export function paintTerrain(scene: Phaser.Scene, map: WorldMap): void {
+export function paintTerrain(scene: Phaser.Scene, map: TerrainSurface): void {
   const ts = map.tileSize;
   const W = map.widthTiles;
   const H = map.heightTiles;
@@ -104,6 +120,46 @@ export function paintTerrain(scene: Phaser.Scene, map: WorldMap): void {
         if (hash(x, y, 7) > 0.7) {
           g.fillStyle(detail.light, 0.5);
           g.fillRect(px + 6 + Math.floor(hash(x, y, 2) * 18), py + 6 + Math.floor(hash(x, y, 4) * 18), 3, 3);
+        }
+        continue;
+      }
+
+      if (t === "wood") {
+        // Plank seams running along X, with a stagger so joins don't line up.
+        g.fillStyle(detail.dark, 0.45);
+        g.fillRect(px, py, ts, 1);
+        g.fillRect(px, py + ts / 2, ts, 1);
+        const joint = hash(x, y, 8) > 0.55 ? 0 : ts / 2;
+        g.fillRect(px + Math.floor(hash(x, y, 9) * (ts - 4)), py + joint, 1, ts / 2);
+        if (hash(x, y, 10) > 0.6) {
+          g.fillStyle(detail.light, 0.35);
+          g.fillRect(px + 2, py + joint + 4, ts - 4, 1);
+        }
+        continue;
+      }
+
+      if (t === "tile" || t === "concrete") {
+        // Grout lines; concrete gets a coarser speckle on top.
+        g.fillStyle(detail.dark, t === "tile" ? 0.45 : 0.25);
+        g.fillRect(px, py, ts, 1);
+        g.fillRect(px, py, 1, ts);
+        if (t === "tile") {
+          g.fillRect(px + ts / 2, py, 1, ts);
+          g.fillRect(px, py + ts / 2, ts, 1);
+        } else if (hash(x, y, 11) > 0.4) {
+          g.fillStyle(detail.light, 0.4);
+          g.fillRect(px + 4 + Math.floor(hash(x, y, 12) * 20), py + 4 + Math.floor(hash(x, y, 13) * 20), 2, 2);
+        }
+        continue;
+      }
+
+      if (t === "carpet") {
+        // Dense fine weave, no hard edges.
+        for (let i = 0; i < 6; i++) {
+          const cx = px + Math.floor(hash(x, y, i + 50) * ts);
+          const cy = py + Math.floor(hash(x, y, i + 60) * ts);
+          g.fillStyle(hash(x, y, i + 70) > 0.5 ? detail.light : detail.dark, 0.3);
+          g.fillRect(cx, cy, 2, 1);
         }
         continue;
       }
@@ -278,7 +334,7 @@ export function paintBuildings(scene: Phaser.Scene, map: WorldMap): void {
 }
 
 /** A translucent footprint + label for a sub-area (Phase 1B/1D). */
-export function paintSubArea(scene: Phaser.Scene, map: WorldMap, sa: SubArea): void {
+export function paintSubArea(scene: Phaser.Scene, map: TerrainSurface, sa: SubArea): void {
   const ts = map.tileSize;
   const px = sa.x * ts;
   const py = sa.y * ts;
@@ -304,7 +360,7 @@ export function paintSubArea(scene: Phaser.Scene, map: WorldMap, sa: SubArea): v
 }
 
 /** Draws a single world object with shading and drop shadows. */
-export function paintObject(scene: Phaser.Scene, map: WorldMap, o: WorldObject): void {
+export function paintObject(scene: Phaser.Scene, map: TerrainSurface, o: WorldObject): void {
   const ts = map.tileSize;
   const cx = o.x * ts + ts / 2;
   const cy = o.y * ts + ts / 2;
@@ -575,4 +631,60 @@ export function ensureCharacterTexture(
 
   g.generateTexture(key, 20, 30);
   g.destroy();
+}
+
+/**
+ * Paints an interior's shell: walls, their lit inner faces, and a marked exit.
+ *
+ * Interiors reuse `paintTerrain` for the floor and `paintObject` for props, so
+ * this only has to draw what the outdoor world doesn't have — the enclosure.
+ * Walls are drawn as blocks with a lighter top face and a darker skirt so the
+ * room reads as a space with height rather than a flat plan.
+ */
+export function paintInteriorShell(scene: Phaser.Scene, interior: Interior): void {
+  const ts = interior.tileSize;
+
+  const g = scene.add.graphics();
+  g.setDepth(1);
+
+  for (const w of interior.walls) {
+    const px = w.x * ts;
+    const py = w.y * ts;
+    const pw = w.w * ts;
+    const ph = w.h * ts;
+
+    // Body.
+    g.fillStyle(0x6b5744, 1);
+    g.fillRect(px, py, pw, ph);
+    // Lit top edge, reading as the wall cap catching the room light.
+    g.fillStyle(0x8a7157, 1);
+    g.fillRect(px, py, pw, Math.min(6, ph));
+    // Dark skirt where the wall meets the floor.
+    g.fillStyle(0x4a3b2d, 1);
+    g.fillRect(px, py + ph - 4, pw, 4);
+    // Vertical seams so long walls don't read as one flat slab.
+    g.fillStyle(0x5c4b3a, 0.7);
+    for (let x = px + ts; x < px + pw; x += ts) g.fillRect(x, py, 1, ph);
+  }
+
+  // Exit: a lit doorway on the floor, so the way out is never ambiguous.
+  const ex = interior.exit.x * ts;
+  const ey = interior.exit.y * ts;
+  const door = scene.add.graphics();
+  door.setDepth(1.5);
+  door.fillStyle(0x2b2118, 1);
+  door.fillRect(ex + 2, ey, ts - 4, ts);
+  door.fillStyle(0xf2d9a0, 0.85);
+  door.fillRect(ex + 4, ey + ts - 10, ts - 8, 8);
+  door.fillStyle(0xffeec4, 0.35);
+  door.fillRect(ex, ey + ts - 6, ts, 10);
+
+  const label = scene.add.text(ex + ts / 2, ey - 6, "EXIT", {
+    fontFamily: "monospace",
+    fontSize: "10px",
+    color: "#ffeec4",
+    backgroundColor: "#00000088",
+    padding: { x: 3, y: 1 },
+  });
+  label.setOrigin(0.5, 1).setDepth(200001);
 }

@@ -24,6 +24,7 @@ export default function WorldShell() {
   const [near, setNear] = useState<NearPerson[]>([]);
   const [selected, setSelected] = useState<PersonSeed | null>(null);
   const [enterPrompt, setEnterPrompt] = useState<string | null>(null);
+  const [interior, setInterior] = useState<{ id: string; name: string } | null>(null);
   const [online, setOnline] = useState(1);
   const [netStatus, setNetStatus] = useState<"connecting" | "live" | "offline">("connecting");
   const [voice, setVoice] = useState({ micEnabled: false, micDenied: false, supported: true });
@@ -41,6 +42,7 @@ export default function WorldShell() {
       bus.on("voice:status", (s) => setVoice(s)),
       bus.on("voice:audible", (n) => setAudible(n)),
       bus.on("voice:links", (n) => setLinks(n)),
+      bus.on("interior:change", (i) => setInterior(i ? { id: i.id, name: i.name } : null)),
       bus.on("building:enter", (b) => {
         setEnterPrompt(b.name);
         window.clearTimeout((window as unknown as { __et?: number }).__et);
@@ -70,9 +72,22 @@ export default function WorldShell() {
       {/* Location HUD */}
       <div className="pointer-events-none absolute left-4 top-4 z-20 flex items-start gap-2">
         <div className="rounded-lg bg-ink/85 px-3 py-2 text-parchment shadow-lg">
-          <div className="text-[10px] uppercase tracking-widest opacity-60">You are in</div>
+          <div className="text-[10px] uppercase tracking-widest opacity-60">
+            {interior ? "You are inside" : "You are in"}
+          </div>
           <div className="font-semibold">{district}</div>
         </div>
+
+        {/* Leaving is always one click away, so nobody feels stuck in a room. */}
+        {interior && (
+          <button
+            type="button"
+            onClick={() => bus.emit("interior:leave", undefined)}
+            className="pointer-events-auto rounded-lg bg-parchment/95 px-3 py-2 text-sm font-semibold text-ink shadow-lg transition hover:bg-parchment"
+          >
+            ← Leave
+          </button>
+        )}
         <div className="rounded-lg bg-ink/85 px-3 py-2 text-parchment shadow-lg">
           <div className="text-[10px] uppercase tracking-widest opacity-60">
             {netStatus === "live" ? "Live now" : netStatus === "connecting" ? "Connecting" : "Offline"}
@@ -187,7 +202,6 @@ export default function WorldShell() {
         <div className="pointer-events-none absolute left-1/2 top-20 z-30 -translate-x-1/2">
           <div className="rounded-full bg-parchment px-4 py-2 text-sm font-semibold text-ink shadow-xl">
             🚪 You entered <span className="font-bold">{enterPrompt}</span>
-            <span className="ml-2 opacity-50">(interior coming soon)</span>
           </div>
         </div>
       )}
