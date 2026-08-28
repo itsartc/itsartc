@@ -21,9 +21,9 @@ export default function World3DPage() {
           <div className="text-[10px] uppercase tracking-widest opacity-60">
             Renderer preview
           </div>
-          <div className="font-semibold">Town Central · 3D</div>
+          <div className="font-semibold">Future City · 3D</div>
           <div className="mt-0.5 font-mono text-[9px] uppercase tracking-wider opacity-40">
-            first-person foundation · player + collision
+            complete city layout · first-person
           </div>
           <div className="mt-1.5 border-t border-parchment/15 pt-1.5 font-mono text-[10px] opacity-60">
             WASD / arrows / click to walk

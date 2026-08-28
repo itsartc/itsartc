@@ -38,6 +38,13 @@ export interface AssetPackCredit {
   modified: boolean;
 }
 
+export interface WorldEnvironmentAssetDefinition {
+  id: string;
+  label: string;
+  pack: AssetPack;
+  url: string;
+}
+
 export const ASSET_PACK_CREDITS: Readonly<Partial<Record<AssetPack, AssetPackCredit>>> = {
   "Future City 1": {
     creator: "HiQ3D",
@@ -48,6 +55,23 @@ export const ASSET_PACK_CREDITS: Readonly<Partial<Record<AssetPack, AssetPackCre
     modified: true,
   },
 };
+
+export const WORLD_ENVIRONMENT_ASSETS: readonly WorldEnvironmentAssetDefinition[] = [
+  {
+    id: "future-city-1.full-city",
+    label: "Future City 1",
+    pack: "Future City 1",
+    url: "/assets/sketchfab/future-city-1/full-city.glb",
+  },
+];
+
+const WORLD_ENVIRONMENT_ASSET_BY_ID = new Map(
+  WORLD_ENVIRONMENT_ASSETS.map((asset) => [asset.id, asset]),
+);
+
+export function getWorldEnvironmentAsset(id: string | undefined) {
+  return id ? WORLD_ENVIRONMENT_ASSET_BY_ID.get(id) : undefined;
+}
 
 const title = (slug: string) =>
   slug

@@ -1,4 +1,4 @@
-import { getWorldAsset } from "./assetCatalog";
+import { getWorldAsset, getWorldEnvironmentAsset } from "./assetCatalog";
 import { WorldCollision } from "./collision";
 import type { Building, WorldMap } from "./schema";
 
@@ -25,6 +25,23 @@ export function validateWorldMap(map: WorldMap): WorldValidationIssue[] {
     }
     ids.add(id);
   };
+
+  if (map.environment && !getWorldEnvironmentAsset(map.environment.assetId)) {
+    issues.push({
+      severity: "error",
+      code: "invalid-environment-asset",
+      message: `Unknown environment asset: ${map.environment.assetId}`,
+    });
+  }
+  for (const [index, rect] of (map.environment?.collisionRects ?? []).entries()) {
+    if (!inBounds(map, rect.x, rect.y, rect.w, rect.h)) {
+      issues.push({
+        severity: "error",
+        code: "environment-collision-out-of-bounds",
+        message: `Environment collision ${index + 1} extends beyond the map`,
+      });
+    }
+  }
 
   for (const building of map.buildings) {
     addId(building.id);

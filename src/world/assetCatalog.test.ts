@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { WORLD_ASSETS } from "./assetCatalog";
+import { WORLD_ASSETS, WORLD_ENVIRONMENT_ASSETS } from "./assetCatalog";
 
 describe("WORLD_ASSETS", () => {
   it("catalogues the Kenney libraries and curated Future City assets", () => {
@@ -29,6 +29,7 @@ describe("WORLD_ASSETS", () => {
     const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8")) as {
       assets: { id: string; bytes: number; triangles: number }[];
       deferred: { id: string }[];
+      environment: { bytes: number; triangles: number };
     };
     const catalogIds = WORLD_ASSETS
       .filter((asset) => asset.pack === "Future City 1")
@@ -41,5 +42,9 @@ describe("WORLD_ASSETS", () => {
     expect(manifest.deferred.map((asset) => asset.id).sort()).toEqual(["building-11", "park-bench"]);
     expect(existsSync(join(root, "future_city_1.glb"))).toBe(false);
     expect(existsSync(join(root, "ATTRIBUTION.md"))).toBe(true);
+    expect(WORLD_ENVIRONMENT_ASSETS).toHaveLength(1);
+    expect(existsSync(join(process.cwd(), "public", WORLD_ENVIRONMENT_ASSETS[0].url))).toBe(true);
+    expect(manifest.environment.bytes).toBeLessThan(40 * 1024 * 1024);
+    expect(manifest.environment.triangles).toBeLessThan(1_000_000);
   });
 });

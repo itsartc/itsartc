@@ -1,10 +1,10 @@
 import type { ObjectType } from "@/world/schema";
-import { WORLD_ASSETS } from "@/world/assetCatalog";
+import { WORLD_ASSETS, WORLD_ENVIRONMENT_ASSETS } from "@/world/assetCatalog";
 import type { GlbAssetCatalog } from "./AssetRegistry";
 
 /** One loadable registry generated from the editor's verified asset catalog. */
 export const WORLD_GLBS: GlbAssetCatalog = Object.fromEntries(
-  WORLD_ASSETS.map((asset) => [asset.id, { url: asset.url }]),
+  [...WORLD_ASSETS, ...WORLD_ENVIRONMENT_ASSETS].map((asset) => [asset.id, { url: asset.url }]),
 );
 
 /** World identities stay separate from visual asset identities. */

@@ -6,10 +6,10 @@ import { WORLD_ASSET_BINDINGS } from "@/three/assets/catalog";
 import type { CameraView } from "@/three/CameraRig";
 import { ASSET_PACK_CREDITS, WORLD_ASSETS, getWorldAsset, type AssetCategory } from "@/world/assetCatalog";
 import type { Building, WorldMap, WorldObject } from "@/world/schema";
-import { townCentral } from "@/world/townCentral";
+import { futureCity } from "@/world/futureCity";
 import { cloneWorldMap, validateWorldMap } from "@/world/validation";
 
-const DRAFT_KEY = "itsartc.admin.world.town-central.v1";
+const DRAFT_KEY = "itsartc.admin.world.future-city.v1";
 
 type Selection = { kind: "building" | "object"; id: string } | null;
 
@@ -41,14 +41,14 @@ const ASSET_COLOURS: Record<AssetCategory, string> = {
 };
 
 function editorSeed(): WorldMap {
-  const map = cloneWorldMap(townCentral);
+  const map = cloneWorldMap(futureCity);
   for (const building of map.buildings) {
-    building.assetId = WORLD_ASSET_BINDINGS.buildings[building.id];
-    building.rotation = 0;
+    building.assetId ??= WORLD_ASSET_BINDINGS.buildings[building.id];
+    building.rotation ??= 0;
   }
   for (const object of map.objects) {
-    object.assetId = WORLD_ASSET_BINDINGS.objects[object.type];
-    object.rotation = 0;
+    object.assetId ??= WORLD_ASSET_BINDINGS.objects[object.type];
+    object.rotation ??= 0;
   }
   return map;
 }
@@ -238,7 +238,7 @@ export default function WorldEditor() {
         <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-4">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">itsartc admin</div>
-            <h1 className="text-xl font-semibold">World builder · Town Central</h1>
+            <h1 className="text-xl font-semibold">World builder · {draft.name}</h1>
             <p className="mt-1 text-xs text-slate-400">{notice}</p>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
@@ -247,7 +247,7 @@ export default function WorldEditor() {
             <button onClick={() => importRef.current?.click()} className="rounded-lg border border-white/15 px-3 py-2 hover:bg-white/5">Import</button>
             <input ref={importRef} type="file" accept="application/json" className="hidden" onChange={(event) => void importDraft(event.target.files?.[0])} />
             <button
-              onClick={() => { const next = editorSeed(); setDraft(next); setPreviewMap(cloneWorldMap(next)); setSelection(null); setNotice("Reset to committed Town Central"); }}
+              onClick={() => { const next = editorSeed(); setDraft(next); setPreviewMap(cloneWorldMap(next)); setSelection(null); setNotice("Reset to committed Future City"); }}
               className="rounded-lg border border-red-400/30 px-3 py-2 text-red-200 hover:bg-red-400/10"
             >Reset</button>
           </div>
@@ -304,7 +304,7 @@ export default function WorldEditor() {
             </div>
             <div
               role="application"
-              aria-label="Town Central construction canvas"
+              aria-label="Future City construction canvas"
               onClick={placeAsset}
               className="relative w-full cursor-crosshair overflow-hidden rounded-lg border border-white/15 bg-[#66ab4d] shadow-inner"
               style={{ aspectRatio: `${draft.widthTiles} / ${draft.heightTiles}` }}

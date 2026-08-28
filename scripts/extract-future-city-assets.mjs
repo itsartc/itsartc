@@ -40,6 +40,15 @@ const SELECTIONS = [
   },
 ];
 
+const ENVIRONMENT_SELECTION = {
+  id: "full-city",
+  label: "Future City 1",
+  node: /^GLTF_SceneRootNode$/,
+  normalize: { maxHorizontal: 88, anchor: "minimum" },
+};
+
+const EDITABLE_ENVIRONMENT_BUILDINGS = /^(?:Building_[1-5]|Building_7|Building_8)_[0-9]+$/;
+
 const [inputArg, outputArg = "public/assets/sketchfab/future-city-1"] = process.argv.slice(2);
 if (!inputArg) {
   console.error("Usage: node scripts/extract-future-city-assets.mjs <source.glb> [output-directory]");
@@ -57,6 +66,41 @@ await mkdir(outputPath, { recursive: true });
 const parents = makeParentMap(source.nodes);
 const worldMatrices = makeWorldMatrices(source, parents);
 const manifest = [];
+
+const environmentMatch = source.nodes
+  .map((node, index) => ({ node, index }))
+  .filter(({ node }) => ENVIRONMENT_SELECTION.node.test(node.name ?? ""));
+if (environmentMatch.length !== 1) {
+  throw new Error(`full-city: expected one matching node, found ${environmentMatch.length}`);
+}
+const environmentResult = extractAsset({
+  source,
+  binary,
+  rootIndex: environmentMatch[0].index,
+  worldMatrices,
+  selection: {
+    ...ENVIRONMENT_SELECTION,
+    excludeNodeIndices: new Set(
+      source.nodes
+        .map((node, index) => ({ node, index }))
+        .filter(({ node }) => EDITABLE_ENVIRONMENT_BUILDINGS.test(node.name ?? ""))
+        .map(({ index }) => index),
+    ),
+  },
+});
+await writeFile(path.join(outputPath, "full-city.glb"), environmentResult.glb);
+
+const environmentBuildings = source.nodes
+  .map((node, index) => ({ node, index }))
+  .filter(({ node }) => /^(?:Building_[1-8]|building_11)_[0-9]+$/.test(node.name ?? ""))
+  .map(({ node, index }) => ({
+    sourceNode: node.name,
+    bounds: normalizedBounds(
+      measureBounds(source, [...collectDescendants(source.nodes, index)], worldMatrices),
+      environmentResult.normalizationMatrix,
+    ),
+  }))
+  .sort((a, b) => a.sourceNode.localeCompare(b.sourceNode, undefined, { numeric: true }));
 
 for (const selection of SELECTIONS) {
   const matches = source.nodes
@@ -96,11 +140,23 @@ const conversionManifest = {
     sha256: createHash("sha256").update(sourceBytes).digest("hex"),
   },
   notes: [
-    "The original source GLB is intentionally not deployed.",
+    "The original source GLB is retained outside the application; full-city.glb is a normalized, repacked derivative.",
+    "Buildings 1-5, 7 and 8 are removed from full-city.glb and loaded as editable authored buildings at their original layout positions.",
     "Each output contains only the nodes, meshes, materials, accessors and buffer data used by that asset.",
     "Outputs are centred, grounded and uniformly normalized for the Three.js world editor.",
     "Geometry has not yet been decimated; future LOD work should retain this manifest and attribution.",
   ],
+  environment: {
+    id: ENVIRONMENT_SELECTION.id,
+    label: ENVIRONMENT_SELECTION.label,
+    file: "full-city.glb",
+    bytes: environmentResult.glb.length,
+    triangles: environmentResult.triangles,
+    meshes: environmentResult.meshes,
+    materials: environmentResult.materials,
+    normalizedBoundsMetres: environmentResult.normalizedBounds,
+    buildingBoundsMetres: environmentBuildings,
+  },
   deferred: [
     {
       id: "building-11",
@@ -127,9 +183,16 @@ for (const asset of manifest) {
     `${asset.id.padEnd(14)} ${formatBytes(asset.bytes).padStart(9)}  ${String(asset.triangles).padStart(8)} triangles`,
   );
 }
+console.log(
+  `${"full-city".padEnd(14)} ${formatBytes(environmentResult.glb.length).padStart(9)}  ${String(environmentResult.triangles).padStart(8)} triangles`,
+);
 
 function extractAsset({ source, binary, rootIndex, worldMatrices, selection }) {
-  const descendants = collectDescendants(source.nodes, rootIndex);
+  const descendants = collectDescendants(
+    source.nodes,
+    rootIndex,
+    selection.excludeNodeIndices ?? new Set(),
+  );
   const orderedNodes = [...descendants].sort((a, b) => a - b);
   const bounds = measureBounds(source, orderedNodes, worldMatrices);
   if (bounds.isEmpty()) throw new Error(`${selection.id}: no measurable geometry`);
@@ -172,10 +235,12 @@ function extractAsset({ source, binary, rootIndex, worldMatrices, selection }) {
   const packed = packAccessors(source, binary, uniqueAccessors);
 
   const nodeMap = new Map(orderedNodes.map((oldIndex, index) => [oldIndex, index + 1]));
+  const anchorX = selection.normalize.anchor === "minimum" ? bounds.min.x : center.x;
+  const anchorZ = selection.normalize.anchor === "minimum" ? bounds.min.z : center.z;
   const normalizer = new THREE.Matrix4().set(
-    scalar, 0, 0, -scalar * center.x,
+    scalar, 0, 0, -scalar * anchorX,
     0, scalar, 0, -scalar * bounds.min.y,
-    0, 0, scalar, -scalar * center.z,
+    0, 0, scalar, -scalar * anchorZ,
     0, 0, 0, 1,
   );
 
@@ -251,6 +316,7 @@ function extractAsset({ source, binary, rootIndex, worldMatrices, selection }) {
       height: round(size.y * scalar),
       depth: round(size.z * scalar),
     },
+    normalizationMatrix: normalizer,
   };
 }
 
@@ -339,10 +405,10 @@ function nodeMatrix(node) {
   );
 }
 
-function collectDescendants(nodes, rootIndex) {
+function collectDescendants(nodes, rootIndex, excluded = new Set()) {
   const result = new Set();
   const visit = (index) => {
-    if (result.has(index)) return;
+    if (result.has(index) || excluded.has(index)) return;
     result.add(index);
     for (const child of nodes[index].children ?? []) visit(child);
   };
@@ -371,6 +437,30 @@ function measureBounds(source, nodeIndices, worldMatrices) {
     }
   }
   return result;
+}
+
+function normalizedBounds(bounds, matrix) {
+  const transformed = new THREE.Box3();
+  const point = new THREE.Vector3();
+  for (const x of [bounds.min.x, bounds.max.x]) {
+    for (const y of [bounds.min.y, bounds.max.y]) {
+      for (const z of [bounds.min.z, bounds.max.z]) {
+        transformed.expandByPoint(point.set(x, y, z).applyMatrix4(matrix));
+      }
+    }
+  }
+  const size = transformed.getSize(new THREE.Vector3());
+  return {
+    minX: round(transformed.min.x),
+    minY: round(transformed.min.y),
+    minZ: round(transformed.min.z),
+    maxX: round(transformed.max.x),
+    maxY: round(transformed.max.y),
+    maxZ: round(transformed.max.z),
+    width: round(size.x),
+    height: round(size.y),
+    depth: round(size.z),
+  };
 }
 
 function packAccessors(source, binary, indices) {

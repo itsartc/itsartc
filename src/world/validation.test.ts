@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { townCentral } from "./townCentral";
+import { futureCity } from "./futureCity";
 import { cloneWorldMap, validateWorldMap } from "./validation";
 
 describe("validateWorldMap", () => {
   it("accepts the committed Town Central map", () => {
     expect(validateWorldMap(townCentral)).toEqual([]);
+  });
+
+  it("accepts the normalized Future City map", () => {
+    expect(validateWorldMap(futureCity)).toEqual([]);
   });
 
   it("rejects overlapping buildings before a draft can be published", () => {

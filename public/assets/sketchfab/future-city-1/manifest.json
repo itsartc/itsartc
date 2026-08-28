@@ -11,11 +11,154 @@
     "sha256": "94c5f13a63b3bd4b6983c2570be165aa70bf832d16aa785c443c84b420bc5f14"
   },
   "notes": [
-    "The original source GLB is intentionally not deployed.",
+    "The original source GLB is retained outside the application; full-city.glb is a normalized, repacked derivative.",
+    "Buildings 1-5, 7 and 8 are removed from full-city.glb and loaded as editable authored buildings at their original layout positions.",
     "Each output contains only the nodes, meshes, materials, accessors and buffer data used by that asset.",
     "Outputs are centred, grounded and uniformly normalized for the Three.js world editor.",
     "Geometry has not yet been decimated; future LOD work should retain this manifest and attribution."
   ],
+  "environment": {
+    "id": "full-city",
+    "label": "Future City 1",
+    "file": "full-city.glb",
+    "bytes": 37848268,
+    "triangles": 917048,
+    "meshes": 358,
+    "materials": 36,
+    "normalizedBoundsMetres": {
+      "width": 88,
+      "height": 38.036,
+      "depth": 85.189
+    },
+    "buildingBoundsMetres": [
+      {
+        "sourceNode": "Building_1_393",
+        "bounds": {
+          "minX": 68.493,
+          "minY": 1.655,
+          "minZ": 10.694,
+          "maxX": 85.518,
+          "maxY": 27.851,
+          "maxZ": 27.719,
+          "width": 17.025,
+          "height": 26.196,
+          "depth": 17.025
+        }
+      },
+      {
+        "sourceNode": "Building_2_595",
+        "bounds": {
+          "minX": 34.241,
+          "minY": 1.655,
+          "minZ": 65.139,
+          "maxX": 47.566,
+          "maxY": 36.176,
+          "maxZ": 80.117,
+          "width": 13.324,
+          "height": 34.521,
+          "depth": 14.978
+        }
+      },
+      {
+        "sourceNode": "Building_3_655",
+        "bounds": {
+          "minX": 75.601,
+          "minY": 1.655,
+          "minZ": 51.688,
+          "maxX": 87.633,
+          "maxY": 38.136,
+          "maxZ": 65.012,
+          "width": 12.033,
+          "height": 36.481,
+          "depth": 13.324
+        }
+      },
+      {
+        "sourceNode": "Building_4_729",
+        "bounds": {
+          "minX": 32.403,
+          "minY": 1.522,
+          "minZ": 50.559,
+          "maxX": 55.625,
+          "maxY": 27.851,
+          "maxZ": 64.096,
+          "width": 23.222,
+          "height": 26.329,
+          "depth": 13.537
+        }
+      },
+      {
+        "sourceNode": "Building_5_788",
+        "bounds": {
+          "minX": 33.074,
+          "minY": 1.655,
+          "minZ": 21.611,
+          "maxX": 55.237,
+          "maxY": 34.772,
+          "maxZ": 43.809,
+          "width": 22.163,
+          "height": 33.117,
+          "depth": 22.197
+        }
+      },
+      {
+        "sourceNode": "Building_6_851",
+        "bounds": {
+          "minX": 47.188,
+          "minY": 1.655,
+          "minZ": 17.421,
+          "maxX": 56.364,
+          "maxY": 33.441,
+          "maxZ": 25.86,
+          "width": 9.176,
+          "height": 31.786,
+          "depth": 8.439
+        }
+      },
+      {
+        "sourceNode": "Building_7_869",
+        "bounds": {
+          "minX": 2.723,
+          "minY": 1.655,
+          "minZ": 50.486,
+          "maxX": 23.227,
+          "maxY": 26.4,
+          "maxZ": 62.471,
+          "width": 20.503,
+          "height": 24.745,
+          "depth": 11.984
+        }
+      },
+      {
+        "sourceNode": "Building_8_882",
+        "bounds": {
+          "minX": 20.727,
+          "minY": 1.655,
+          "minZ": 27.499,
+          "maxX": 23.7,
+          "maxY": 31.159,
+          "maxZ": 37.354,
+          "width": 2.974,
+          "height": 29.504,
+          "depth": 9.855
+        }
+      },
+      {
+        "sourceNode": "building_11_536",
+        "bounds": {
+          "minX": 62.505,
+          "minY": 0.576,
+          "minZ": 23.946,
+          "maxX": 76.333,
+          "maxY": 38.036,
+          "maxZ": 55.148,
+          "width": 13.828,
+          "height": 37.46,
+          "depth": 31.202
+        }
+      }
+    ]
+  },
   "deferred": [
     {
       "id": "building-11",

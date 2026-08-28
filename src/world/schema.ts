@@ -265,6 +265,13 @@ export interface WorldMap extends TerrainSurface {
   name: string;
   version: number;
   spawn: { x: number; y: number };
+  /** Optional large visual layer; authored data still owns coordinates and collision. */
+  environment?: {
+    assetId: string;
+    offset: { x: number; y: number; z: number };
+    /** Simple blockers for fixed environment geometry not represented as buildings. */
+    collisionRects?: { x: number; y: number; w: number; h: number }[];
+  };
   districts: District[];
   buildings: Building[];
   /** Named sub-areas within venues/districts (Phase 1B/1D). */

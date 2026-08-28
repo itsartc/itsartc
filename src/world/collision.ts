@@ -36,6 +36,15 @@ export class WorldCollision {
       this.markRect(region.x, region.y, region.w, region.h);
     }
 
+    for (const rect of map.environment?.collisionRects ?? []) {
+      this.markRect(rect.x, rect.y, rect.w, rect.h);
+    }
+    // Authored doors carve through coarse environment blockers. Buildings and
+    // objects are applied afterwards, so another entity can still block one.
+    for (const building of map.buildings) {
+      if (building.entrance) this.clear(building.entrance.x, building.entrance.y);
+    }
+
     for (const building of map.buildings) {
       for (let y = building.y; y < building.y + building.h; y++) {
         for (let x = building.x; x < building.x + building.w; x++) {
@@ -165,5 +174,10 @@ export class WorldCollision {
   private mark(x: number, y: number) {
     if (x < 0 || y < 0 || x >= this.widthTiles || y >= this.heightTiles) return;
     this.solid[y * this.widthTiles + x] = 1;
+  }
+
+  private clear(x: number, y: number) {
+    if (x < 0 || y < 0 || x >= this.widthTiles || y >= this.heightTiles) return;
+    this.solid[y * this.widthTiles + x] = 0;
   }
 }

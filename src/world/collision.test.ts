@@ -97,6 +97,33 @@ describe("WorldCollision", () => {
     expect(result.x).toBeCloseTo(2.7, 3);
   });
 
+  it("uses coarse environment collision while preserving authored doors", () => {
+    const collision = new WorldCollision(map({
+      environment: {
+        assetId: "future-city-1.full-city",
+        offset: { x: 0, y: 0, z: 0 },
+        collisionRects: [{ x: 2, y: 2, w: 3, h: 3 }],
+      },
+      buildings: [{
+        id: "venue",
+        name: "Venue",
+        districtId: "district",
+        x: 2,
+        y: 2,
+        w: 3,
+        h: 3,
+        wallColor: "#000",
+        roofColor: "#000",
+        enterable: true,
+        entrance: { x: 3, y: 2 },
+      }],
+    }));
+
+    expect(collision.isSolidTile(2, 2)).toBe(true);
+    expect(collision.isSolidTile(3, 2)).toBe(false);
+    expect(collision.isSolidTile(4, 4)).toBe(true);
+  });
+
   it("keeps every Town Central venue entrance reachable from spawn", () => {
     const collision = new WorldCollision(townCentral);
     const key = (x: number, y: number) => `${x},${y}`;

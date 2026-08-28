@@ -3,6 +3,7 @@ import type { WorldMap } from "@/world/schema";
 import { buildTerrain } from "./build/TerrainBuilder";
 import { buildBuildings } from "./build/BuildingBuilder";
 import { buildObjects } from "./build/ObjectBuilder";
+import { buildEnvironment } from "./build/EnvironmentBuilder";
 import { buildPlayer } from "./build/PlayerBuilder";
 import { CameraRig, type CameraView } from "./CameraRig";
 import { Input } from "./Input";
@@ -65,12 +66,14 @@ export interface RendererDiagnostics {
     };
   };
   assets: {
+    environmentErrors: readonly string[];
     buildingErrors: readonly string[];
     objectErrors: readonly string[];
   };
 }
 
 export class WorldRenderer {
+  readonly ready: Promise<void>;
   private readonly container: HTMLElement;
   private readonly map: WorldMap;
 
@@ -83,6 +86,7 @@ export class WorldRenderer {
   private assets: AssetRegistry;
   private buildingAssetErrors: readonly string[] = [];
   private objectAssetErrors: readonly string[] = [];
+  private environmentAssetErrors: readonly string[] = [];
 
   /** Ground plane used to turn a screen click into a world position. */
   private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -128,6 +132,10 @@ export class WorldRenderer {
     this.disposers.push(terrain.dispose);
 
     this.assets = new AssetRegistry(WORLD_GLBS);
+    const environment = buildEnvironment(map, this.assets);
+    this.environmentAssetErrors = environment.assetErrors;
+    this.scene.add(environment.group);
+
     const buildings = buildBuildings(map, this.assets, WORLD_ASSET_BINDINGS.buildings);
     this.buildingAssetErrors = buildings.assetErrors;
     this.scene.add(buildings.group);
@@ -138,6 +146,7 @@ export class WorldRenderer {
     this.scene.add(objects.group);
     this.disposers.push(objects.dispose);
     this.disposers.push(() => this.assets.dispose());
+    this.ready = Promise.all([environment.ready, buildings.ready, objects.ready]).then(() => undefined);
 
     // --- Player -----------------------------------------------------------
     this.input = new Input(this.renderer.domElement);
@@ -285,6 +294,7 @@ export class WorldRenderer {
         collision: this.player.collisionInfo,
       },
       assets: {
+        environmentErrors: this.environmentAssetErrors,
         buildingErrors: this.buildingAssetErrors,
         objectErrors: this.objectAssetErrors,
       },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { townCentral } from "@/world/townCentral";
+import { futureCity } from "@/world/futureCity";
 
 /**
  * Mounts the Three.js world into a div.
@@ -21,7 +21,7 @@ export default function ThreeCanvas() {
 
   useEffect(() => {
     let cancelled = false;
-    let renderer: { dispose: () => void } | null = null;
+    let renderer: { ready: Promise<void>; dispose: () => void } | null = null;
 
     (async () => {
       try {
@@ -38,12 +38,13 @@ export default function ThreeCanvas() {
             ? ("follow" as const)
             : ("first-person" as const);
 
-        const instance = new WorldRenderer(containerRef.current, townCentral, { view });
+        const instance = new WorldRenderer(containerRef.current, futureCity, { view });
         renderer = instance;
 
         // Exposed for smoke tests and manual diagnostics in the console.
         (window as unknown as { __three?: unknown }).__three = instance;
-        setReady(true);
+        await instance.ready;
+        if (!cancelled) setReady(true);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       }
