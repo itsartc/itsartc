@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "threejs-game-director": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-game-director/SKILL.md",
+      "computedHash": "276e89aa25dc550a63271ccb36c4384bc82beb0620600ad44eaaaac1c7ef2552"
+    }
+  }
+}
