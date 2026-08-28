@@ -7,6 +7,12 @@
       "skillPath": "skills/threejs-aaa-graphics-builder/SKILL.md",
       "computedHash": "fd1bd5c64b5dc5fa4e09907d2c42234466b2b9db9489ad259242d3eaba4b3af2"
     },
+    "threejs-debug-profiler": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-debug-profiler/SKILL.md",
+      "computedHash": "efd46d911be861e88c94d4ea0fb149dffe2de2dec0e12e9611c28512f795610a"
+    },
     "threejs-game-director": {
       "source": "majidmanzarpour/threejs-game-skills",
       "sourceType": "github",
