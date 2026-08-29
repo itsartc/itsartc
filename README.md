@@ -4,24 +4,42 @@ A live professional world, rendered in 3D.
 
 ## Status
 
-Reset to a clean slate. The previous 2D Phaser world, its Three.js port, the
-Supabase backend (presence, proximity voice, auth, storage), the world admin
-editor and the Town Central / Future City world data have all been removed. The
-world is being rebuilt from scratch.
-
-Everything removed is recoverable from git history at commit `aecb8ec`.
+The world is `procedural-city-6`, rendered in Three.js at `/`.
 
 ## What's here
 
-A deployable Next.js 14 app — App Router, TypeScript, Tailwind — with Three.js
-installed and nothing built on top of it yet, plus the licensed 3D city assets.
-
 ```
-app/                      layout, global styles, placeholder landing page
-src/                      (empty — the world goes here)
-public/assets/sketchfab/  Future City model: full city + separated buildings
-scripts/                  asset extraction pipeline for the above
-docs/                     how those assets were produced
+app/                              layout, global styles, the world route
+src/three/CityRenderer.ts         scene, camera, lighting, model loading
+src/three/CityCanvas.tsx          client-only mount + load progress
+public/assets/procedural-city-6/  city.glb — the compressed world
+```
+
+## The world model
+
+`city.glb` is a meshopt-compressed build of `Terrain Remaked.glb`:
+
+| | Source | Shipped |
+|---|---|---|
+| Size | 69.7 MB | **10.5 MB** |
+| Textures | JPEG/PNG up to 2048² | WebP, capped at 1024² |
+| Geometry | uncompressed | meshopt |
+
+The model is 248 × 196 units across and 112 units tall, which reads as metres:
+a roughly two-block downtown site with towers up to ~30 storeys. Geometry is
+unchanged — no decimation — so the silhouette matches the source exactly.
+
+The 66 MB source GLB and its 110 MB `textures/` folder are **not** in the
+working tree. The GLB embeds its own textures, so that folder was a duplicate
+export for the OBJ/FBX variant. Both remain in git history at commit `9c10582`.
+
+To re-compress from source after checking that commit out:
+
+```bash
+npx @gltf-transform/cli optimize \
+  "public/assets/procedural-city-6/source/Terrain Remaked.glb" \
+  public/assets/procedural-city-6/city.glb \
+  --compress meshopt --texture-compress webp --texture-size 1024 --simplify false
 ```
 
 ## 3D assets
