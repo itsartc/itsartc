@@ -3,6 +3,21 @@ import type { Building, CityMap, Prop } from "@/world/schema";
 import { KERB_HEIGHT } from "@/world/schema";
 import { CityMaterials, type MaterialName } from "../materials/CityMaterials";
 import { buildRoadMarkings } from "./RoadMarkings";
+import { GeometryBatcher } from "./GeometryBatcher";
+import { DISTRICT_SIGNATURES } from "./districts";
+import type { SignatureContext } from "./districts/types";
+import {
+  addGeometryCollider,
+  boxPart,
+  entranceSide,
+  entranceYaw,
+  mergeGeometries,
+  orientedBox,
+  orientedTiltedBox,
+  transformFromEntrance,
+  type BoxPart,
+  type EntranceSide,
+} from "./geometry";
 
 /**
  * Turns a CityMap into geometry.
@@ -30,7 +45,6 @@ const DOOR_WIDTH = 4.8;
 const DOOR_HEIGHT = 3.35;
 const SIGN_HEIGHT = 1.65;
 
-type EntranceSide = "north" | "south" | "east" | "west";
 
 export interface CityBuild {
   group: THREE.Group;
@@ -108,6 +122,20 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
     "parks",
   );
 
+  // Bespoke district geometry batches by material through here, so adding a
+  // signature never means adding another array threaded through this function.
+  const batcher = new GeometryBatcher();
+  disposers.push(() => batcher.dispose());
+
+  const signatureContext: SignatureContext = {
+    add: (batch, makeMaterial, geometry, options) =>
+      batcher.add(batch, makeMaterial, geometry, options),
+    solid: (box) => colliders.push(box),
+    materials,
+    ownTexture: (texture) => ownedTextures.push(texture),
+    batcher,
+  };
+
   // --- Buildings -----------------------------------------------------------
   // Grouped by façade material so each style is one draw call, not one per
   // building. Tint varies per building, so the key includes the colour.
@@ -118,13 +146,6 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   const entranceDoorParts: THREE.BufferGeometry[] = [];
   const entranceGlowParts: THREE.BufferGeometry[] = [];
   const signPlaqueParts: THREE.BufferGeometry[] = [];
-  const aiConcreteParts: THREE.BufferGeometry[] = [];
-  const aiDarkParts: THREE.BufferGeometry[] = [];
-  const aiGlassParts: THREE.BufferGeometry[] = [];
-  const aiAccentParts: THREE.BufferGeometry[] = [];
-  const aiSolarParts: THREE.BufferGeometry[] = [];
-  const aiFoliageParts: THREE.BufferGeometry[] = [];
-  const aiTrunkParts: THREE.BufferGeometry[] = [];
 
   for (const b of map.buildings) {
     const name = FACADE_MATERIAL[b.style];
@@ -157,19 +178,11 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
       signPlaqueParts,
     );
 
-    if (b.districtId === "ai-district") {
-      buildAiDistrict(
-        b,
-        colliders,
-        aiConcreteParts,
-        aiDarkParts,
-        aiGlassParts,
-        aiAccentParts,
-        aiSolarParts,
-        aiFoliageParts,
-        aiTrunkParts,
-      );
-    }
+    // A district may have a bespoke architectural identity. It decorates the
+    // standard shell rather than replacing it, so the hollow interior, the
+    // doorway and its collision keep working.
+    const signature = DISTRICT_SIGNATURES[b.districtId];
+    if (signature) signature.build(b, signatureContext);
 
     // A parapet slab reads as a roof edge and hides the flat top. It overlaps
     // down into the walls rather than sitting exactly on them: a shared plane
@@ -189,51 +202,9 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   merge(entranceFrameParts, materials.get("metal", 4, 4, "#252b31"), "entrance-frames");
   merge(signPlaqueParts, materials.get("metal", 8, 2, "#20262d"), "building-sign-plaques");
 
-  const aiConcreteMaterial = new THREE.MeshStandardMaterial({
-    color: 0xc4c9cd,
-    roughness: 0.82,
-    metalness: 0.02,
-  });
-  const aiGlassMaterial = new THREE.MeshStandardMaterial({
-    color: 0x7398b1,
-    roughness: 0.16,
-    metalness: 0.2,
-    transparent: true,
-    opacity: 0.7,
-  });
-  const aiAccentMaterial = new THREE.MeshBasicMaterial({
-    color: 0xa371f7,
-    toneMapped: false,
-  });
-  const aiSolarMaterial = new THREE.MeshStandardMaterial({
-    color: 0x173c62,
-    roughness: 0.28,
-    metalness: 0.55,
-  });
-  const aiFoliageMaterial = new THREE.MeshStandardMaterial({
-    color: 0x3f713e,
-    roughness: 0.95,
-    flatShading: true,
-  });
-  const aiTrunkMaterial = new THREE.MeshStandardMaterial({
-    color: 0x76533a,
-    roughness: 0.96,
-  });
-  ownedMaterials.push(
-    aiConcreteMaterial,
-    aiGlassMaterial,
-    aiAccentMaterial,
-    aiSolarMaterial,
-    aiFoliageMaterial,
-    aiTrunkMaterial,
-  );
-  merge(aiConcreteParts, aiConcreteMaterial, "ai-district-concrete-frame");
-  merge(aiDarkParts, materials.get("metal", 6, 6, "#252b31"), "ai-district-graphite-details");
-  merge(aiGlassParts, aiGlassMaterial, "ai-district-lobby-glass");
-  merge(aiAccentParts, aiAccentMaterial, "ai-district-purple-accents");
-  merge(aiSolarParts, aiSolarMaterial, "ai-district-rooftop-tech");
-  merge(aiFoliageParts, aiFoliageMaterial, "ai-district-landscaping");
-  merge(aiTrunkParts, aiTrunkMaterial, "ai-district-tree-trunks");
+  // Bespoke district geometry, one mesh per material it asked for.
+  batcher.flush(group, geometries);
+
 
   const doorMaterial = new THREE.MeshStandardMaterial({
     color: 0x6f9db8,
@@ -281,14 +252,6 @@ interface BuildingShell {
   floor: THREE.BufferGeometry;
 }
 
-interface BoxPart {
-  x: number;
-  y: number;
-  z: number;
-  w: number;
-  h: number;
-  d: number;
-}
 
 /** A hollow four-wall shell with the entrance cut into the correct façade. */
 function buildBuildingShell(building: Building): BuildingShell {
@@ -379,168 +342,6 @@ function buildBuildingShell(building: Building): BuildingShell {
   return { walls, colliders, floor };
 }
 
-/**
- * One deliberately bespoke building assembled from the same cheap primitives
- * as the rest of Downtown. It changes silhouette, frontage and roofline
- * without adding a model download or leaking AI styling into other districts.
- */
-function buildAiDistrict(
-  building: Building,
-  colliders: THREE.Box3[],
-  concreteParts: THREE.BufferGeometry[],
-  darkParts: THREE.BufferGeometry[],
-  glassParts: THREE.BufferGeometry[],
-  accentParts: THREE.BufferGeometry[],
-  solarParts: THREE.BufferGeometry[],
-  foliageParts: THREE.BufferGeometry[],
-  trunkParts: THREE.BufferGeometry[],
-) {
-  if (!building.entrance) return;
-
-  const origin = new THREE.Vector3(building.entrance.x, 0, building.entrance.z);
-  const yaw = entranceYaw(entranceSide(building));
-  const top = KERB_HEIGHT + building.height;
-  const floorHeight = building.height / building.floors;
-  const halfWidth = building.w / 2;
-
-  // Pale outer frame and floor bands give this façade a different rhythm from
-  // the procedural window sheet beneath it while remaining simple boxes.
-  concreteParts.push(
-    orientedBox(2.3, building.height + 0.8, 0.62, -halfWidth + 1.15, KERB_HEIGHT + building.height / 2, 0.24, origin, yaw),
-    orientedBox(2.3, building.height + 0.8, 0.62, halfWidth - 1.15, KERB_HEIGHT + building.height / 2, 0.24, origin, yaw),
-    orientedBox(building.w - 0.5, 0.52, 0.72, 0, top + 0.08, 0.28, origin, yaw),
-  );
-  for (let floor = 2; floor < building.floors; floor++) {
-    concreteParts.push(
-      orientedBox(
-        building.w - 2.5,
-        0.3,
-        0.48,
-        0,
-        KERB_HEIGHT + floor * floorHeight,
-        0.32,
-        origin,
-        yaw,
-      ),
-    );
-  }
-
-  // Two graphite fin banks and slim purple lines form a recognizable district
-  // identity even when the sign is too far away to read.
-  for (const centre of [-15.5, 15.5]) {
-    for (const offset of [-1.05, -0.35, 0.35, 1.05]) {
-      darkParts.push(
-        orientedBox(
-          0.22,
-          building.height - 5.2,
-          0.92,
-          centre + offset,
-          KERB_HEIGHT + 5.2 + (building.height - 5.2) / 2,
-          0.58,
-          origin,
-          yaw,
-        ),
-      );
-    }
-  }
-  for (const x of [-10.7, 10.7]) {
-    accentParts.push(
-      orientedBox(
-        0.24,
-        building.height - 7.4,
-        0.18,
-        x,
-        KERB_HEIGHT + 7.4 + (building.height - 7.4) / 2,
-        0.85,
-        origin,
-        yaw,
-      ),
-    );
-  }
-
-  // A transparent two-storey lobby is split around the existing real doorway.
-  const lobbyWidth = 36;
-  const lobbyHeight = floorHeight * 2 - 0.35;
-  const lobbySideWidth = (lobbyWidth - DOOR_WIDTH) / 2;
-  for (const direction of [-1, 1]) {
-    glassParts.push(
-      orientedBox(
-        lobbySideWidth,
-        lobbyHeight,
-        0.12,
-        direction * (DOOR_WIDTH / 2 + lobbySideWidth / 2),
-        KERB_HEIGHT + lobbyHeight / 2,
-        0.7,
-        origin,
-        yaw,
-      ),
-    );
-  }
-  for (const x of [-18, -12, -6, 6, 12, 18]) {
-    darkParts.push(
-      orientedBox(0.14, lobbyHeight, 0.22, x, KERB_HEIGHT + lobbyHeight / 2, 0.82, origin, yaw),
-    );
-  }
-  darkParts.push(
-    orientedBox(lobbyWidth + 0.5, 0.22, 0.28, 0, KERB_HEIGHT + lobbyHeight, 0.82, origin, yaw),
-  );
-  accentParts.push(
-    orientedBox(DOOR_WIDTH + 3.2, 0.12, 1.72, 0, KERB_HEIGHT + DOOR_HEIGHT + 0.71, 1.42, origin, yaw),
-  );
-
-  // Low rooftop equipment, an antenna and tilted solar modules provide a
-  // distinct roof silhouette using only primitives visible from the street.
-  darkParts.push(
-    orientedBox(7.5, 2.2, 5.2, -19, top + 1.1, -24, origin, yaw),
-    orientedBox(5.5, 1.45, 4.2, -9, top + 0.73, -25, origin, yaw),
-  );
-  const antenna = new THREE.CylinderGeometry(0.12, 0.18, 4.8, 8);
-  antenna.translate(0, top + 2.4, -25);
-  transformFromEntrance(antenna, origin, yaw);
-  darkParts.push(antenna);
-
-  for (let index = 0; index < 4; index++) {
-    solarParts.push(
-      orientedTiltedBox(4.4, 0.12, 2.3, 7.5 + index * 5.1, top + 1.08, -24, -0.28, origin, yaw),
-    );
-  }
-
-  // Paired planters, trees and a compact information totem frame the approach
-  // without reducing the doorway's 4.8 m clear width.
-  for (const direction of [-1, 1]) {
-    const planter = orientedBox(5.2, 0.9, 2.1, direction * 10.5, KERB_HEIGHT + 0.45, 2.7, origin, yaw);
-    darkParts.push(planter);
-    addGeometryCollider(planter, colliders);
-
-    for (const offset of [-1.5, 0, 1.5]) {
-      const shrub = new THREE.IcosahedronGeometry(0.68, 1);
-      shrub.scale(1, 0.82, 1);
-      shrub.translate(direction * 10.5 + offset, KERB_HEIGHT + 1.25, 2.7);
-      transformFromEntrance(shrub, origin, yaw);
-      foliageParts.push(shrub);
-    }
-
-    const trunk = new THREE.CylinderGeometry(0.22, 0.3, 3.4, 7);
-    trunk.translate(direction * 25, KERB_HEIGHT + 1.7, 4.3);
-    transformFromEntrance(trunk, origin, yaw);
-    trunkParts.push(trunk);
-
-    const canopy = new THREE.IcosahedronGeometry(2.7, 1);
-    canopy.scale(1.12, 0.9, 1);
-    canopy.translate(direction * 25, KERB_HEIGHT + 4.6, 4.3);
-    transformFromEntrance(canopy, origin, yaw);
-    foliageParts.push(canopy);
-  }
-
-  const totem = orientedBox(1.25, 3.1, 0.58, 17.8, KERB_HEIGHT + 1.55, 4.1, origin, yaw);
-  darkParts.push(totem);
-  addGeometryCollider(totem, colliders);
-  accentParts.push(
-    orientedBox(0.72, 0.72, 0.06, 17.8, KERB_HEIGHT + 1.82, 4.42, origin, yaw),
-    orientedBox(0.1, 1.3, 0.07, 17.8, KERB_HEIGHT + 1.82, 4.46, origin, yaw),
-    orientedBox(0.82, 0.1, 0.07, 17.8, KERB_HEIGHT + 1.82, 4.46, origin, yaw),
-  );
-}
 
 /** Adds the shared entrance architecture plus a data-driven name sign. */
 function buildEntrance(
@@ -637,79 +438,12 @@ function buildEntrance(
   group.add(labelMesh);
 }
 
-function entranceSide(building: Building): EntranceSide {
-  const entrance = building.entrance!;
-  const distances: Array<[EntranceSide, number]> = [
-    ["north", Math.abs(entrance.z - building.z)],
-    ["south", Math.abs(entrance.z - (building.z + building.d))],
-    ["west", Math.abs(entrance.x - building.x)],
-    ["east", Math.abs(entrance.x - (building.x + building.w))],
-  ];
-  distances.sort((a, b) => a[1] - b[1]);
-  return distances[0][0];
-}
 
-/** Local +z always points out of the entrance. */
-function entranceYaw(side: EntranceSide): number {
-  if (side === "north") return Math.PI;
-  if (side === "east") return Math.PI / 2;
-  if (side === "west") return -Math.PI / 2;
-  return 0;
-}
 
-function boxPart(part: BoxPart): THREE.BufferGeometry {
-  const geometry = new THREE.BoxGeometry(part.w, part.h, part.d);
-  geometry.translate(part.x + part.w / 2, part.y + part.h / 2, part.z + part.d / 2);
-  return geometry;
-}
 
-function orientedBox(
-  w: number,
-  h: number,
-  d: number,
-  localX: number,
-  localY: number,
-  localZ: number,
-  origin: THREE.Vector3,
-  yaw: number,
-): THREE.BufferGeometry {
-  const geometry = new THREE.BoxGeometry(w, h, d);
-  geometry.translate(localX, localY, localZ);
-  transformFromEntrance(geometry, origin, yaw);
-  return geometry;
-}
 
-function orientedTiltedBox(
-  w: number,
-  h: number,
-  d: number,
-  localX: number,
-  localY: number,
-  localZ: number,
-  tiltX: number,
-  origin: THREE.Vector3,
-  yaw: number,
-): THREE.BufferGeometry {
-  const geometry = new THREE.BoxGeometry(w, h, d);
-  geometry.rotateX(tiltX);
-  geometry.translate(localX, localY, localZ);
-  transformFromEntrance(geometry, origin, yaw);
-  return geometry;
-}
 
-function addGeometryCollider(geometry: THREE.BufferGeometry, colliders: THREE.Box3[]) {
-  geometry.computeBoundingBox();
-  if (geometry.boundingBox) colliders.push(geometry.boundingBox.clone());
-}
 
-function transformFromEntrance(
-  geometry: THREE.BufferGeometry,
-  origin: THREE.Vector3,
-  yaw: number,
-) {
-  geometry.applyMatrix4(new THREE.Matrix4().makeRotationY(yaw));
-  geometry.translate(origin.x, origin.y, origin.z);
-}
 
 /** Instanced street furniture: one geometry, one draw call, many placements. */
 function buildProps(
@@ -902,57 +636,3 @@ function buildProps(
   }
 }
 
-/**
- * Minimal geometry merge.
- *
- * three ships BufferGeometryUtils for this, but it pulls in a large module for
- * one function and assumes matching attribute sets. Everything merged here is
- * generated by this file with identical attributes, so a direct concatenation
- * is smaller and clearer.
- */
-function mergeGeometries(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  if (parts.length === 1) return parts[0].clone();
-
-  const attributes = ["position", "normal", "uv"] as const;
-  const merged = new THREE.BufferGeometry();
-  let indexCount = 0;
-  let vertexCount = 0;
-
-  for (const part of parts) {
-    vertexCount += part.attributes.position.count;
-    indexCount += part.index ? part.index.count : part.attributes.position.count;
-  }
-
-  for (const name of attributes) {
-    const first = parts[0].attributes[name];
-    if (!first) continue;
-    const itemSize = first.itemSize;
-    const array = new Float32Array(vertexCount * itemSize);
-    let offset = 0;
-    for (const part of parts) {
-      const attr = part.attributes[name];
-      array.set(attr.array as Float32Array, offset);
-      offset += attr.count * itemSize;
-    }
-    merged.setAttribute(name, new THREE.BufferAttribute(array, itemSize));
-  }
-
-  const indices = new Uint32Array(indexCount);
-  let indexOffset = 0;
-  let vertexOffset = 0;
-  for (const part of parts) {
-    const count = part.attributes.position.count;
-    if (part.index) {
-      for (let i = 0; i < part.index.count; i++) {
-        indices[indexOffset++] = part.index.getX(i) + vertexOffset;
-      }
-    } else {
-      for (let i = 0; i < count; i++) indices[indexOffset++] = i + vertexOffset;
-    }
-    vertexOffset += count;
-  }
-  merged.setIndex(new THREE.BufferAttribute(indices, 1));
-  merged.computeBoundingSphere();
-  merged.computeBoundingBox();
-  return merged;
-}

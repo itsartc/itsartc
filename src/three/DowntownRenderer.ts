@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { SelectiveBloom } from "./postprocessing/SelectiveBloom";
 import { downtown } from "@/world/downtown";
 import { KERB_HEIGHT } from "@/world/schema";
 import { CityMaterials } from "./materials/CityMaterials";
@@ -21,6 +22,7 @@ import { SkyEnvironment, SKY_HORIZON_COLOR } from "./SkyEnvironment";
  */
 
 const CAMERA_FOV = 55;
+
 const MAX_PIXEL_RATIO = 2;
 const MAX_FRAME_DELTA = 0.1;
 const BOB_AMPLITUDE = 0.05;
@@ -57,6 +59,7 @@ export class DowntownRenderer {
   private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
+  private bloom: SelectiveBloom;
   private sky: SkyEnvironment;
 
   private materials: CityMaterials;
@@ -100,6 +103,11 @@ export class DowntownRenderer {
 
     // Tight near:far, so decal-scale depth differences stay resolvable.
     this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, width / height, 0.5, 900);
+
+    // Signage glows through selective bloom: chosen meshes are put on a bloom
+    // layer and everything else is masked out of the glow pass. See the module
+    // for why brightness-thresholded bloom does not work in daylight.
+    this.bloom = new SelectiveBloom(this.renderer, this.scene, this.camera, width, height);
 
     this.addLighting(sunPosition);
 
@@ -147,6 +155,7 @@ export class DowntownRenderer {
     this.camera.updateProjectionMatrix();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
     this.renderer.setSize(width, height);
+    this.bloom.setSize(width, height, Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
   };
 
   private loop = (now: number) => {
@@ -170,7 +179,14 @@ export class DowntownRenderer {
     this.chase.update(dt, this.player.position, this.player.facing, this.player.isMoving);
     this.sky.update(this.camera, this.elapsed);
 
-    this.renderer.render(this.scene, this.camera);
+    // Post-processing runs several passes and three resets its counters on each
+    // render, so the raw figures would describe a fullscreen quad rather than
+    // the city. Resetting once per frame accumulates every pass instead, which
+    // is the honest total — and it includes the bloom pass's second look at the
+    // scene, which is the cost worth watching.
+    this.renderer.info.autoReset = false;
+    this.renderer.info.reset();
+    this.bloom.render();
   };
 
   /**
@@ -242,6 +258,7 @@ export class DowntownRenderer {
     this.materials.dispose();
     this.sky.dispose();
 
+    this.bloom.dispose();
     this.scene.clear();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
