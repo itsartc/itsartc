@@ -9,6 +9,7 @@ import { Input } from "./Input";
 import { PlayerController } from "./PlayerController";
 import { ThirdPersonCamera } from "./ThirdPersonCamera";
 import { buildAvatar } from "./build/PlayerAvatar";
+import { SkyEnvironment, SKY_HORIZON_COLOR } from "./SkyEnvironment";
 
 /**
  * Renders Downtown — the city we generate ourselves — and the player in it.
@@ -57,6 +58,7 @@ export class DowntownRenderer {
   private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
+  private sky: SkyEnvironment;
 
   private materials: CityMaterials;
   private city: ReturnType<typeof buildCity>;
@@ -84,12 +86,15 @@ export class DowntownRenderer {
     this.renderer.setSize(width, height);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 0.9;
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x9fc4e0);
-    this.scene.fog = new THREE.Fog(0x9fc4e0, 140, 520);
+    this.scene.background = new THREE.Color(SKY_HORIZON_COLOR);
+    this.scene.fog = new THREE.Fog(SKY_HORIZON_COLOR, 160, 560);
+
+    const sunPosition = new THREE.Vector3(-180, 260, 160);
+    this.sky = new SkyEnvironment(this.scene, sunPosition);
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -97,7 +102,7 @@ export class DowntownRenderer {
     // Tight near:far, so decal-scale depth differences stay resolvable.
     this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, width / height, 0.5, 900);
 
-    this.addLighting();
+    this.addLighting(sunPosition);
 
     // --- World ------------------------------------------------------------
     this.materials = new CityMaterials(this.renderer);
@@ -125,12 +130,12 @@ export class DowntownRenderer {
     this.frameId = requestAnimationFrame(this.loop);
   }
 
-  private addLighting() {
-    const hemi = new THREE.HemisphereLight(0xdff0ff, 0x60605a, 1.0);
+  private addLighting(sunPosition: THREE.Vector3) {
+    const hemi = new THREE.HemisphereLight(0xdff0ff, 0x60605a, 0.78);
     this.scene.add(hemi);
 
-    const sun = new THREE.DirectionalLight(0xfff4e0, 2.3);
-    sun.position.set(-180, 260, 160);
+    const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
+    sun.position.copy(sunPosition);
     this.scene.add(sun);
     this.scene.add(sun.target);
   }
@@ -164,6 +169,7 @@ export class DowntownRenderer {
     );
     this.avatar.rotation.y = this.player.facing;
     this.chase.update(dt, this.player.position, this.player.facing, this.player.isMoving);
+    this.sky.update(this.camera, this.elapsed);
 
     this.renderer.render(this.scene, this.camera);
   };
@@ -235,6 +241,7 @@ export class DowntownRenderer {
     this.city.dispose();
     this.disposeAvatar();
     this.materials.dispose();
+    this.sky.dispose();
 
     this.scene.clear();
     this.renderer.dispose();
