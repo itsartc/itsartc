@@ -3,11 +3,10 @@ import * as THREE from "three";
 /**
  * Signage and façade textures drawn in code.
  *
- * These are the surfaces a sponsor buys: a vertical LED banner down a tower, a
- * lit wordmark on a crown, a ticker above the entrance. Drawing them rather
- * than shipping images means a building's branding is *data* — change a name
- * and two colours and the tower re-skins itself, with no asset pipeline and no
- * download.
+ * These are the surfaces a sponsor buys: a vertical LED banner hung down a
+ * façade, a ticker above an entrance. Drawing them rather than shipping images
+ * means a building's branding is *data* — change a name and two colours and the
+ * façade re-skins itself, with no asset pipeline and no download.
  *
  * Everything is emissive-ready: the colours are drawn bright so that, with
  * bloom, they read as light sources rather than painted panels.
@@ -82,84 +81,6 @@ export function makeVerticalBanner(text: string, top: string, bottom: string): T
   });
 
   return toTexture(el);
-}
-
-/** A lit wordmark for a tower crown: bright text on near-black. */
-export function makeCrownSign(text: string, accent: string): THREE.CanvasTexture {
-  const W = 1024;
-  const H = 256;
-  const { ctx, el } = canvas(W, H);
-
-  ctx.fillStyle = "#0a0d11";
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.fillStyle = accent;
-  ctx.fillRect(0, H - 12, W, 12);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  // Wide tracking reads as architectural signage rather than body text.
-  const spaced = text.toUpperCase().split("").join(" ");
-
-  // Fit the wordmark to the panel. A fixed size clipped longer names — "AI
-  // District" rendered as "I DISTRIC" — and district names are authored data,
-  // so their length is not something this can assume.
-  let size = 116;
-  ctx.font = `700 ${size}px ui-sans-serif, system-ui, sans-serif`;
-  const maxWidth = W * 0.88;
-  const measured = ctx.measureText(spaced).width;
-  if (measured > maxWidth) {
-    size = Math.floor(size * (maxWidth / measured));
-    ctx.font = `700 ${size}px ui-sans-serif, system-ui, sans-serif`;
-  }
-  ctx.fillText(spaced, W / 2, H / 2 + 6);
-
-  return toTexture(el);
-}
-
-/**
- * A diagonal exoskeleton, as a tiling texture.
- *
- * Real crossed members would be thousands of triangles per façade. Drawn as a
- * texture the lattice costs nothing, tiles seamlessly, and stays sharp — the
- * same trade that makes the whole city cheap.
- */
-export function makeDiagridTexture(bars: string, glass: string): THREE.CanvasTexture {
-  const S = 512;
-  const { ctx, el } = canvas(S, S);
-
-  ctx.fillStyle = glass;
-  ctx.fillRect(0, 0, S, S);
-
-  ctx.strokeStyle = bars;
-  ctx.lineWidth = S * 0.055;
-  ctx.lineCap = "square";
-
-  // Both diagonals, drawn twice offset by a tile so the seams match on wrap.
-  for (const dir of [1, -1]) {
-    for (let i = -1; i <= 2; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * S, dir > 0 ? 0 : S);
-      ctx.lineTo((i + 1) * S, dir > 0 ? S : 0);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(i * S - S, dir > 0 ? 0 : S);
-      ctx.lineTo(i * S, dir > 0 ? S : 0);
-      ctx.stroke();
-    }
-  }
-
-  // A horizontal floor member every half tile grounds the diagonals.
-  ctx.lineWidth = S * 0.03;
-  for (const y of [0, S / 2]) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(S, y);
-    ctx.stroke();
-  }
-
-  return toTexture(el, true);
 }
 
 /** A scrolling-style ticker band above an entrance. */

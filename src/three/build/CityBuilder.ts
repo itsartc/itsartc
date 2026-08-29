@@ -5,7 +5,7 @@ import { CityMaterials, type MaterialName } from "../materials/CityMaterials";
 import { buildRoadMarkings } from "./RoadMarkings";
 import { GeometryBatcher } from "./GeometryBatcher";
 import { DISTRICT_SIGNATURES } from "./districts";
-import type { SignatureContext } from "./districts/types";
+import type { EntranceSign, SignatureContext } from "./districts/types";
 import {
   addGeometryCollider,
   boxPart,
@@ -50,6 +50,12 @@ export interface CityBuild {
   group: THREE.Group;
   /** Axis-aligned boxes the player collides with, in world metres. */
   colliders: THREE.Box3[];
+  /**
+   * Advances anything in the city that moves. Almost nothing does — the city is
+   * merged static geometry by design — so this is usually a no-op, and stays
+   * one until a district asks for motion.
+   */
+  update: (elapsed: number, dt: number) => void;
   dispose: () => void;
 }
 
@@ -127,12 +133,20 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   const batcher = new GeometryBatcher();
   disposers.push(() => batcher.dispose());
 
+  /** Per-frame updates asked for by district signatures. */
+  const updates: Array<(elapsed: number, dt: number) => void> = [];
+
   const signatureContext: SignatureContext = {
     add: (batch, makeMaterial, geometry, options) =>
       batcher.add(batch, makeMaterial, geometry, options),
     solid: (box) => colliders.push(box),
     materials,
     ownTexture: (texture) => ownedTextures.push(texture),
+    object: (object, dispose) => {
+      group.add(object);
+      if (dispose) disposers.push(dispose);
+    },
+    animate: (update) => updates.push(update),
     batcher,
   };
 
@@ -233,6 +247,9 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   return {
     group,
     colliders,
+    update: (elapsed, dt) => {
+      for (const update of updates) update(elapsed, dt);
+    },
     dispose: () => {
       geometries.forEach((g) => g.dispose());
       geometries.length = 0;
@@ -383,16 +400,19 @@ function buildEntrance(
   transformFromEntrance(glow, origin, yaw);
   glowParts.push(glow);
 
-  const isAiDistrict = building.districtId === "ai-district";
-  const signWidth = isAiDistrict
-    ? 18
-    : THREE.MathUtils.clamp(building.name.length * 0.72 + 3.2, 9, 17);
-  const signHeight = isAiDistrict ? 2.25 : SIGN_HEIGHT;
-  const signY = isAiDistrict
-    ? KERB_HEIGHT + (building.height / building.floors) * 2 + 1.35
-    : KERB_HEIGHT + DOOR_HEIGHT + 1.82;
-  const signDepth = isAiDistrict ? 0.92 : 0.18;
-  plaqueParts.push(orientedBox(signWidth, signHeight, 0.22, 0, signY, signDepth, origin, yaw));
+  // A district whose façade composition the default placement would fight can
+  // say where its plaque goes. That decision belongs in the district's own
+  // module: this builder runs for every building and should not know any of
+  // their names.
+  const sign: EntranceSign = DISTRICT_SIGNATURES[building.districtId]?.entranceSign?.(building) ?? {
+    width: THREE.MathUtils.clamp(building.name.length * 0.72 + 3.2, 9, 17),
+    height: SIGN_HEIGHT,
+    y: KERB_HEIGHT + DOOR_HEIGHT + 1.82,
+    depth: 0.18,
+  };
+  plaqueParts.push(
+    orientedBox(sign.width, sign.height, 0.22, 0, sign.y, sign.depth, origin, yaw),
+  );
 
   const canvas = document.createElement("canvas");
   canvas.width = 1024;
@@ -427,8 +447,9 @@ function buildEntrance(
   });
   ownedMaterials.push(labelMaterial);
 
-  const labelGeometry = new THREE.PlaneGeometry(signWidth - 0.55, signHeight - 0.3);
-  labelGeometry.translate(0, signY, isAiDistrict ? 1.045 : 0.305);
+  const labelGeometry = new THREE.PlaneGeometry(sign.width - 0.55, sign.height - 0.3);
+  // Just clear of the plaque's own front face, which is half its 0.22 thickness.
+  labelGeometry.translate(0, sign.y, sign.depth + 0.125);
   transformFromEntrance(labelGeometry, origin, yaw);
   geometries.push(labelGeometry);
 

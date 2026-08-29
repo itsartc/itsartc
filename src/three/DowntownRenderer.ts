@@ -178,6 +178,7 @@ export class DowntownRenderer {
     this.avatar.rotation.y = this.player.facing;
     this.chase.update(dt, this.player.position, this.player.facing, this.player.isMoving);
     this.sky.update(this.camera, this.elapsed);
+    this.city.update(this.elapsed, dt);
 
     // Post-processing runs several passes and three resets its counters on each
     // render, so the raw figures would describe a fullscreen quad rather than
@@ -205,7 +206,16 @@ export class DowntownRenderer {
   }
 
   get debug() {
-    return { collision: this.collision, player: this.player, chase: this.chase, city: downtown, THREE };
+    return {
+      collision: this.collision,
+      player: this.player,
+      chase: this.chase,
+      city: downtown,
+      scene: this.scene,
+      camera: this.camera,
+      group: this.city.group,
+      THREE,
+    };
   }
 
   getDiagnostics(): DowntownDiagnostics {

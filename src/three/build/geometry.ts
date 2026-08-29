@@ -67,6 +67,30 @@ export function orientedBox(
   return geometry;
 }
 
+/**
+ * A box turned about the vertical axis within the building's own frame.
+ *
+ * Needed by anything that does not run parallel to a façade — a panel across a
+ * chamfered corner, a light seam on a rounded one.
+ */
+export function orientedYawBox(
+  w: number,
+  h: number,
+  d: number,
+  localX: number,
+  localY: number,
+  localZ: number,
+  localYaw: number,
+  origin: THREE.Vector3,
+  yaw: number,
+): THREE.BufferGeometry {
+  const geometry = new THREE.BoxGeometry(w, h, d);
+  geometry.rotateY(localYaw);
+  geometry.translate(localX, localY, localZ);
+  transformFromEntrance(geometry, origin, yaw);
+  return geometry;
+}
+
 export function orientedTiltedBox(
   w: number,
   h: number,

@@ -29,7 +29,31 @@ export interface SignatureContext {
   /** Textures created here are disposed with the city. */
   ownTexture(texture: THREE.Texture): void;
 
+  /**
+   * Adds a standalone object, for the rare element that cannot be batched —
+   * anything that has to move independently. Everything static should go
+   * through `add` instead, or the draw-call budget goes with it.
+   */
+  object(object: THREE.Object3D, dispose?: () => void): void;
+
+  /**
+   * Registers a per-frame update. This runs on the render path, so it must stay
+   * to a handful of arithmetic operations: nudging a texture offset or a
+   * rotation, not rebuilding geometry.
+   */
+  animate(update: (elapsed: number, dt: number) => void): void;
+
   batcher: GeometryBatcher;
+}
+
+/** Placement of the name plaque above a building's door, in its own frame. */
+export interface EntranceSign {
+  width: number;
+  height: number;
+  /** Height above the ground plane, to the centre of the plaque. */
+  y: number;
+  /** How far the plaque stands out from the entrance façade. */
+  depth: number;
 }
 
 /**
@@ -41,4 +65,11 @@ export interface SignatureContext {
  */
 export interface DistrictSignature {
   build(building: Building, ctx: SignatureContext): void;
+
+  /**
+   * Overrides where the shared entrance builder puts the name plaque, for a
+   * façade whose composition the default placement would fight. Districts that
+   * do not care omit it and get the default.
+   */
+  entranceSign?(building: Building): EntranceSign;
 }
