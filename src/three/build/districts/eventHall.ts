@@ -64,16 +64,33 @@ const PLINTH_FRONT = 4.9;
 const STEP_FRONT = 5.9;
 const PLINTH_RISE = 0.35;
 
-const SKIN = 0xc7b8a1;
-const PIER = 0xa2947f;
-const DARK = 0x2a2320;
-const COLONNADE = 0x8a7c69;
+/**
+ * Oxidised bronze, over a pale stone plinth.
+ *
+ * The first pass was champagne, which sat only four points off the tiled
+ * buildings' own beige — and four of those stand downtown already, so the
+ * palette was doing far less to separate this building than intended. Bronze
+ * is unambiguous against both the tiles and the blue-grey glass, and it is
+ * the right ground for the coral accent.
+ */
+const SKIN = 0xa9714c;
+const PIER = 0x8a5a3a;
+const COLONNADE = 0x6f4830;
+const DARK = 0x2a1e18;
+const STONE = 0xc3b9ab;
 const ACCENT = "#ff7b72";
 
 export const eventHall: DistrictSignature = {
-  /** Inside the recess, and large: this is a venue's name board. */
+  /**
+   * Small, and low over the doors.
+   *
+   * The marquee is this building's name board. A second one at the same scale
+   * a few metres beneath it read as a mistake rather than as signage, so what
+   * stays in the recess is door-scale: the thing you read on the threshold,
+   * not from across the park.
+   */
   entranceSign(): EntranceSign {
-    return { width: 20, height: 2.6, y: KERB_HEIGHT + 8.4, depth: 0.5 };
+    return { width: 10, height: 1.7, y: KERB_HEIGHT + 5.2, depth: 0.5 };
   },
 
   build(building: Building, ctx: SignatureContext) {
@@ -302,7 +319,7 @@ function buildForecourt(
   base: number,
 ) {
   const width = halfWidth * 2 + PIER_SIZE;
-  const stone = () => new THREE.MeshStandardMaterial({ color: 0xbdb3a4, roughness: 0.86, metalness: 0.03 });
+  const stone = () => new THREE.MeshStandardMaterial({ color: STONE, roughness: 0.86, metalness: 0.03 });
 
   const solidBox = (w: number, h: number, d: number, x: number, y: number, z: number) => {
     const geometry = orientedBox(w, h, d, x, y, z, origin, yaw);
