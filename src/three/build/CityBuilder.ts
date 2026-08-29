@@ -118,6 +118,13 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   const entranceDoorParts: THREE.BufferGeometry[] = [];
   const entranceGlowParts: THREE.BufferGeometry[] = [];
   const signPlaqueParts: THREE.BufferGeometry[] = [];
+  const aiConcreteParts: THREE.BufferGeometry[] = [];
+  const aiDarkParts: THREE.BufferGeometry[] = [];
+  const aiGlassParts: THREE.BufferGeometry[] = [];
+  const aiAccentParts: THREE.BufferGeometry[] = [];
+  const aiSolarParts: THREE.BufferGeometry[] = [];
+  const aiFoliageParts: THREE.BufferGeometry[] = [];
+  const aiTrunkParts: THREE.BufferGeometry[] = [];
 
   for (const b of map.buildings) {
     const name = FACADE_MATERIAL[b.style];
@@ -150,6 +157,20 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
       signPlaqueParts,
     );
 
+    if (b.districtId === "ai-district") {
+      buildAiDistrict(
+        b,
+        colliders,
+        aiConcreteParts,
+        aiDarkParts,
+        aiGlassParts,
+        aiAccentParts,
+        aiSolarParts,
+        aiFoliageParts,
+        aiTrunkParts,
+      );
+    }
+
     // A parapet slab reads as a roof edge and hides the flat top. It overlaps
     // down into the walls rather than sitting exactly on them: a shared plane
     // between two solids is a z-fight waiting for the right viewing angle.
@@ -167,6 +188,52 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   merge(floorParts, materials.get("plaza", 40, 40), "building-floors");
   merge(entranceFrameParts, materials.get("metal", 4, 4, "#252b31"), "entrance-frames");
   merge(signPlaqueParts, materials.get("metal", 8, 2, "#20262d"), "building-sign-plaques");
+
+  const aiConcreteMaterial = new THREE.MeshStandardMaterial({
+    color: 0xc4c9cd,
+    roughness: 0.82,
+    metalness: 0.02,
+  });
+  const aiGlassMaterial = new THREE.MeshStandardMaterial({
+    color: 0x7398b1,
+    roughness: 0.16,
+    metalness: 0.2,
+    transparent: true,
+    opacity: 0.7,
+  });
+  const aiAccentMaterial = new THREE.MeshBasicMaterial({
+    color: 0xa371f7,
+    toneMapped: false,
+  });
+  const aiSolarMaterial = new THREE.MeshStandardMaterial({
+    color: 0x173c62,
+    roughness: 0.28,
+    metalness: 0.55,
+  });
+  const aiFoliageMaterial = new THREE.MeshStandardMaterial({
+    color: 0x3f713e,
+    roughness: 0.95,
+    flatShading: true,
+  });
+  const aiTrunkMaterial = new THREE.MeshStandardMaterial({
+    color: 0x76533a,
+    roughness: 0.96,
+  });
+  ownedMaterials.push(
+    aiConcreteMaterial,
+    aiGlassMaterial,
+    aiAccentMaterial,
+    aiSolarMaterial,
+    aiFoliageMaterial,
+    aiTrunkMaterial,
+  );
+  merge(aiConcreteParts, aiConcreteMaterial, "ai-district-concrete-frame");
+  merge(aiDarkParts, materials.get("metal", 6, 6, "#252b31"), "ai-district-graphite-details");
+  merge(aiGlassParts, aiGlassMaterial, "ai-district-lobby-glass");
+  merge(aiAccentParts, aiAccentMaterial, "ai-district-purple-accents");
+  merge(aiSolarParts, aiSolarMaterial, "ai-district-rooftop-tech");
+  merge(aiFoliageParts, aiFoliageMaterial, "ai-district-landscaping");
+  merge(aiTrunkParts, aiTrunkMaterial, "ai-district-tree-trunks");
 
   const doorMaterial = new THREE.MeshStandardMaterial({
     color: 0x6f9db8,
@@ -312,6 +379,169 @@ function buildBuildingShell(building: Building): BuildingShell {
   return { walls, colliders, floor };
 }
 
+/**
+ * One deliberately bespoke building assembled from the same cheap primitives
+ * as the rest of Downtown. It changes silhouette, frontage and roofline
+ * without adding a model download or leaking AI styling into other districts.
+ */
+function buildAiDistrict(
+  building: Building,
+  colliders: THREE.Box3[],
+  concreteParts: THREE.BufferGeometry[],
+  darkParts: THREE.BufferGeometry[],
+  glassParts: THREE.BufferGeometry[],
+  accentParts: THREE.BufferGeometry[],
+  solarParts: THREE.BufferGeometry[],
+  foliageParts: THREE.BufferGeometry[],
+  trunkParts: THREE.BufferGeometry[],
+) {
+  if (!building.entrance) return;
+
+  const origin = new THREE.Vector3(building.entrance.x, 0, building.entrance.z);
+  const yaw = entranceYaw(entranceSide(building));
+  const top = KERB_HEIGHT + building.height;
+  const floorHeight = building.height / building.floors;
+  const halfWidth = building.w / 2;
+
+  // Pale outer frame and floor bands give this façade a different rhythm from
+  // the procedural window sheet beneath it while remaining simple boxes.
+  concreteParts.push(
+    orientedBox(2.3, building.height + 0.8, 0.62, -halfWidth + 1.15, KERB_HEIGHT + building.height / 2, 0.24, origin, yaw),
+    orientedBox(2.3, building.height + 0.8, 0.62, halfWidth - 1.15, KERB_HEIGHT + building.height / 2, 0.24, origin, yaw),
+    orientedBox(building.w - 0.5, 0.52, 0.72, 0, top + 0.08, 0.28, origin, yaw),
+  );
+  for (let floor = 2; floor < building.floors; floor++) {
+    concreteParts.push(
+      orientedBox(
+        building.w - 2.5,
+        0.3,
+        0.48,
+        0,
+        KERB_HEIGHT + floor * floorHeight,
+        0.32,
+        origin,
+        yaw,
+      ),
+    );
+  }
+
+  // Two graphite fin banks and slim purple lines form a recognizable district
+  // identity even when the sign is too far away to read.
+  for (const centre of [-15.5, 15.5]) {
+    for (const offset of [-1.05, -0.35, 0.35, 1.05]) {
+      darkParts.push(
+        orientedBox(
+          0.22,
+          building.height - 5.2,
+          0.92,
+          centre + offset,
+          KERB_HEIGHT + 5.2 + (building.height - 5.2) / 2,
+          0.58,
+          origin,
+          yaw,
+        ),
+      );
+    }
+  }
+  for (const x of [-10.7, 10.7]) {
+    accentParts.push(
+      orientedBox(
+        0.24,
+        building.height - 7.4,
+        0.18,
+        x,
+        KERB_HEIGHT + 7.4 + (building.height - 7.4) / 2,
+        0.85,
+        origin,
+        yaw,
+      ),
+    );
+  }
+
+  // A transparent two-storey lobby is split around the existing real doorway.
+  const lobbyWidth = 36;
+  const lobbyHeight = floorHeight * 2 - 0.35;
+  const lobbySideWidth = (lobbyWidth - DOOR_WIDTH) / 2;
+  for (const direction of [-1, 1]) {
+    glassParts.push(
+      orientedBox(
+        lobbySideWidth,
+        lobbyHeight,
+        0.12,
+        direction * (DOOR_WIDTH / 2 + lobbySideWidth / 2),
+        KERB_HEIGHT + lobbyHeight / 2,
+        0.7,
+        origin,
+        yaw,
+      ),
+    );
+  }
+  for (const x of [-18, -12, -6, 6, 12, 18]) {
+    darkParts.push(
+      orientedBox(0.14, lobbyHeight, 0.22, x, KERB_HEIGHT + lobbyHeight / 2, 0.82, origin, yaw),
+    );
+  }
+  darkParts.push(
+    orientedBox(lobbyWidth + 0.5, 0.22, 0.28, 0, KERB_HEIGHT + lobbyHeight, 0.82, origin, yaw),
+  );
+  accentParts.push(
+    orientedBox(DOOR_WIDTH + 3.2, 0.12, 1.72, 0, KERB_HEIGHT + DOOR_HEIGHT + 0.71, 1.42, origin, yaw),
+  );
+
+  // Low rooftop equipment, an antenna and tilted solar modules provide a
+  // distinct roof silhouette using only primitives visible from the street.
+  darkParts.push(
+    orientedBox(7.5, 2.2, 5.2, -19, top + 1.1, -24, origin, yaw),
+    orientedBox(5.5, 1.45, 4.2, -9, top + 0.73, -25, origin, yaw),
+  );
+  const antenna = new THREE.CylinderGeometry(0.12, 0.18, 4.8, 8);
+  antenna.translate(0, top + 2.4, -25);
+  transformFromEntrance(antenna, origin, yaw);
+  darkParts.push(antenna);
+
+  for (let index = 0; index < 4; index++) {
+    solarParts.push(
+      orientedTiltedBox(4.4, 0.12, 2.3, 7.5 + index * 5.1, top + 1.08, -24, -0.28, origin, yaw),
+    );
+  }
+
+  // Paired planters, trees and a compact information totem frame the approach
+  // without reducing the doorway's 4.8 m clear width.
+  for (const direction of [-1, 1]) {
+    const planter = orientedBox(5.2, 0.9, 2.1, direction * 10.5, KERB_HEIGHT + 0.45, 2.7, origin, yaw);
+    darkParts.push(planter);
+    addGeometryCollider(planter, colliders);
+
+    for (const offset of [-1.5, 0, 1.5]) {
+      const shrub = new THREE.IcosahedronGeometry(0.68, 1);
+      shrub.scale(1, 0.82, 1);
+      shrub.translate(direction * 10.5 + offset, KERB_HEIGHT + 1.25, 2.7);
+      transformFromEntrance(shrub, origin, yaw);
+      foliageParts.push(shrub);
+    }
+
+    const trunk = new THREE.CylinderGeometry(0.22, 0.3, 3.4, 7);
+    trunk.translate(direction * 25, KERB_HEIGHT + 1.7, 4.3);
+    transformFromEntrance(trunk, origin, yaw);
+    trunkParts.push(trunk);
+
+    const canopy = new THREE.IcosahedronGeometry(2.7, 1);
+    canopy.scale(1.12, 0.9, 1);
+    canopy.translate(direction * 25, KERB_HEIGHT + 4.6, 4.3);
+    transformFromEntrance(canopy, origin, yaw);
+    foliageParts.push(canopy);
+  }
+
+  const totem = orientedBox(1.25, 3.1, 0.58, 17.8, KERB_HEIGHT + 1.55, 4.1, origin, yaw);
+  darkParts.push(totem);
+  addGeometryCollider(totem, colliders);
+  accentParts.push(
+    orientedBox(0.72, 0.72, 0.06, 17.8, KERB_HEIGHT + 1.82, 4.42, origin, yaw),
+    orientedBox(0.1, 1.3, 0.07, 17.8, KERB_HEIGHT + 1.82, 4.46, origin, yaw),
+    orientedBox(0.82, 0.1, 0.07, 17.8, KERB_HEIGHT + 1.82, 4.46, origin, yaw),
+  );
+}
+
 /** Adds the shared entrance architecture plus a data-driven name sign. */
 function buildEntrance(
   building: Building,
@@ -352,9 +582,16 @@ function buildEntrance(
   transformFromEntrance(glow, origin, yaw);
   glowParts.push(glow);
 
-  const signWidth = THREE.MathUtils.clamp(building.name.length * 0.72 + 3.2, 9, 17);
-  const signY = KERB_HEIGHT + DOOR_HEIGHT + 1.82;
-  plaqueParts.push(orientedBox(signWidth, SIGN_HEIGHT, 0.22, 0, signY, 0.18, origin, yaw));
+  const isAiDistrict = building.districtId === "ai-district";
+  const signWidth = isAiDistrict
+    ? 18
+    : THREE.MathUtils.clamp(building.name.length * 0.72 + 3.2, 9, 17);
+  const signHeight = isAiDistrict ? 2.25 : SIGN_HEIGHT;
+  const signY = isAiDistrict
+    ? KERB_HEIGHT + (building.height / building.floors) * 2 + 1.35
+    : KERB_HEIGHT + DOOR_HEIGHT + 1.82;
+  const signDepth = isAiDistrict ? 0.92 : 0.18;
+  plaqueParts.push(orientedBox(signWidth, signHeight, 0.22, 0, signY, signDepth, origin, yaw));
 
   const canvas = document.createElement("canvas");
   canvas.width = 1024;
@@ -389,8 +626,8 @@ function buildEntrance(
   });
   ownedMaterials.push(labelMaterial);
 
-  const labelGeometry = new THREE.PlaneGeometry(signWidth - 0.55, SIGN_HEIGHT - 0.3);
-  labelGeometry.translate(0, signY, 0.305);
+  const labelGeometry = new THREE.PlaneGeometry(signWidth - 0.55, signHeight - 0.3);
+  labelGeometry.translate(0, signY, isAiDistrict ? 1.045 : 0.305);
   transformFromEntrance(labelGeometry, origin, yaw);
   geometries.push(labelGeometry);
 
@@ -440,6 +677,29 @@ function orientedBox(
   geometry.translate(localX, localY, localZ);
   transformFromEntrance(geometry, origin, yaw);
   return geometry;
+}
+
+function orientedTiltedBox(
+  w: number,
+  h: number,
+  d: number,
+  localX: number,
+  localY: number,
+  localZ: number,
+  tiltX: number,
+  origin: THREE.Vector3,
+  yaw: number,
+): THREE.BufferGeometry {
+  const geometry = new THREE.BoxGeometry(w, h, d);
+  geometry.rotateX(tiltX);
+  geometry.translate(localX, localY, localZ);
+  transformFromEntrance(geometry, origin, yaw);
+  return geometry;
+}
+
+function addGeometryCollider(geometry: THREE.BufferGeometry, colliders: THREE.Box3[]) {
+  geometry.computeBoundingBox();
+  if (geometry.boundingBox) colliders.push(geometry.boundingBox.clone());
 }
 
 function transformFromEntrance(
