@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { CityCollision } from "./CityCollision";
+import type { WorldCollision } from "./collision/types";
 import type { Input } from "./Input";
 import { PLAYER_HEIGHT, PLAYER_RADIUS } from "./build/PlayerAvatar";
 
@@ -46,7 +46,7 @@ export class PlayerController {
   /** Facing angle in radians; 0 faces +Z, matching the avatar's local forward. */
   facing = 0;
 
-  private readonly collision: CityCollision;
+  private readonly collision: WorldCollision;
   private readonly input: Input;
 
   private velocity = new THREE.Vector2();
@@ -54,7 +54,7 @@ export class PlayerController {
   private grounded = true;
   private accumulator = 0;
 
-  constructor(collision: CityCollision, input: Input, spawn: THREE.Vector3) {
+  constructor(collision: WorldCollision, input: Input, spawn: THREE.Vector3) {
     this.collision = collision;
     this.input = input;
     this.position.copy(spawn);

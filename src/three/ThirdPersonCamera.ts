@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { CityCollision } from "./CityCollision";
+import type { WorldCollision } from "./collision/types";
 import { PLAYER_HEIGHT } from "./build/PlayerAvatar";
 
 /**
@@ -52,14 +52,14 @@ export class ThirdPersonCamera {
   private readonly lookAt = new THREE.Vector3();
   private initialised = false;
 
-  private readonly collision: CityCollision;
+  private readonly collision: WorldCollision;
   private readonly element: HTMLElement;
   private dragging = false;
   private userControlledUntil = 0;
 
   constructor(
     camera: THREE.PerspectiveCamera,
-    collision: CityCollision,
+    collision: WorldCollision,
     element: HTMLElement,
   ) {
     this.camera = camera;

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { WorldCollision } from "./collision/types";
 import {
   computeBoundsTree,
   disposeBoundsTree,
@@ -35,7 +36,7 @@ export interface GroundHit {
   normal: THREE.Vector3;
 }
 
-export class CityCollision {
+export class CityCollision implements WorldCollision {
   private readonly meshes: THREE.Mesh[] = [];
   private readonly raycaster = new THREE.Raycaster();
 
