@@ -46,9 +46,25 @@ re-exported.
 
 | | Source | Shipped |
 |---|---|---|
-| Size | 69.7 MB | **10.5 MB** |
-| Textures | JPEG/PNG up to 2048² | WebP, capped at 1024² |
+| Size | 69.7 MB | **14.0 MB** |
+| Colour maps | up to 3900×3000 | WebP, capped at 2048 |
+| Normal / roughness / metallic | up to 16000×2000 | WebP, capped at 1024 |
 | Geometry | uncompressed | meshopt |
+
+Textures are capped **per slot**, not uniformly. Base colour carries the detail
+the eye reads, so it keeps 2048; normal, roughness and metallic maps describe
+surface response and tolerate half resolution with very little visible loss —
+while costing exactly as much GPU memory. The alternative sizings measured:
+
+| Cap | Download | GPU texture memory |
+|---|---|---|
+| 1024 everywhere | 10.5 MB | 304 MB |
+| **per slot (shipped)** | **14.0 MB** | **489 MB** |
+| 2048 everywhere | 20.5 MB | 820 MB |
+| 4096 everywhere | 21.1 MB | 935 MB |
+
+820 MB of texture memory is a real risk on integrated graphics, which is what
+rules out a uniform 2048.
 
 The model is 248 × 196 units across and 112 units tall, which reads as metres:
 a roughly two-block downtown site with towers up to ~30 storeys. Geometry is

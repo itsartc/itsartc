@@ -149,7 +149,7 @@ export class CityRenderer {
         if (this.disposed) return;
         try {
           this.model = gltf.scene;
-          this.tuneTextures(this.model);
+          this.prepareModel(this.model);
           this.scene.add(this.model);
           this.setupWorld();
           options.onLoaded?.();
@@ -175,28 +175,72 @@ export class CityRenderer {
   }
 
   /**
-   * Raises texture filtering quality across the model.
+   * Prepares the loaded city for real-time viewing: texture filtering,
+   * transparency handling, and bounding volumes.
+   *
+   * ## Transparency
+   *
+   * Blender exported the road markings, stains, street clutter and tree
+   * foliage with alphaMode BLEND, which three renders as `transparent: true`.
+   * Transparent surfaces skip depth writes and are re-sorted by distance every
+   * frame, so as the camera moves the sort order flips and whole surfaces swap
+   * in front of one another — the flickering seen while walking. Because these
+   * are cutout textures (their names literally say "masked" and "alpha"), the
+   * right treatment is alpha testing: they rejoin the opaque queue, the depth
+   * buffer orders them per pixel, and nothing pops.
+   *
+   * Genuine glass is left alone — transmission needs real blending.
+   *
+   * ## Depth
+   *
+   * Markings and stains are decals lying on the road surface. Once they write
+   * depth they would z-fight with it, so a small polygon offset biases them
+   * toward the camera.
+   *
+   * ## Filtering
    *
    * A chase camera sits low and looks down the street, so road surfaces are
    * viewed at a very grazing angle. Standard mipmapping picks an over-blurred
-   * level for that case and the fine road markings crawl and sparkle as the
-   * camera moves. Anisotropic filtering samples along the direction of
-   * compression instead, which is what stops the shimmering.
+   * level for that case and fine markings crawl and sparkle as the camera
+   * moves. Anisotropic filtering samples along the direction of compression
+   * instead, which is what stops the shimmering.
    */
-  private tuneTextures(root: THREE.Object3D) {
+  private prepareModel(root: THREE.Object3D) {
     const maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    const seenTextures = new Set<THREE.Texture>();
+    const seenMaterials = new Set<THREE.Material>();
 
-    const seen = new Set<THREE.Texture>();
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
+
+      // Stale bounds make three cull meshes that are actually on screen, which
+      // reads as parts of the world blinking out as you turn.
+      mesh.geometry?.computeBoundingSphere();
+      mesh.geometry?.computeBoundingBox();
+
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const material of materials) {
-        if (!material) continue;
+        if (!material || seenMaterials.has(material)) continue;
+        seenMaterials.add(material);
+
+        const physical = material as THREE.MeshPhysicalMaterial;
+        const isGlass = (physical.transmission ?? 0) > 0;
+
+        if (material.transparent && !isGlass) {
+          material.transparent = false;
+          material.alphaTest = 0.3;
+          material.depthWrite = true;
+          material.polygonOffset = true;
+          material.polygonOffsetFactor = -2;
+          material.polygonOffsetUnits = -2;
+          material.needsUpdate = true;
+        }
+
         for (const value of Object.values(material)) {
           const tex = value as THREE.Texture;
-          if (!tex || !tex.isTexture || seen.has(tex)) continue;
-          seen.add(tex);
+          if (!tex || !tex.isTexture || seenTextures.has(tex)) continue;
+          seenTextures.add(tex);
           tex.anisotropy = maxAnisotropy;
           tex.needsUpdate = true;
         }
@@ -306,7 +350,14 @@ export class CityRenderer {
    * runtime contract — nothing in the app reads this.
    */
   get debug() {
-    return { collision: this.collision, player: this.player, chase: this.chase, THREE };
+    return {
+      collision: this.collision,
+      player: this.player,
+      chase: this.chase,
+      scene: this.scene,
+      model: this.model,
+      THREE,
+    };
   }
 
   getDiagnostics(): CityDiagnostics {
