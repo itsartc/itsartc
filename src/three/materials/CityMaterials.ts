@@ -34,8 +34,7 @@ export type MaterialName =
   | "facadeConcrete"
   | "roof"
   | "metal"
-  | "bark"
-  | "foliage";
+  | "bark";
 
 interface TextureSet {
   color?: string;
@@ -70,7 +69,6 @@ const SETS: Record<MaterialName, TextureSet> = {
   roof: { color: "roof_color", normal: "roof_normal", scale: 6 },
   metal: { color: "metal_color", normal: "metal_normal", scale: 2 },
   bark: { color: "bark_color", normal: "bark_normal", scale: 2 },
-  foliage: { color: "foliage", scale: 1 },
 };
 
 export class CityMaterials {
@@ -176,14 +174,6 @@ export class CityMaterials {
     if (set.color) material.map = apply(this.texture(set.color, true));
     if (set.normal) material.normalMap = apply(this.texture(set.normal, false));
     if (set.roughness) material.roughnessMap = apply(this.texture(set.roughness, false));
-
-    if (name === "foliage") {
-      // Cutout, not blend: alpha testing keeps leaves in the opaque queue so
-      // they never re-sort and pop as the camera moves.
-      material.alphaTest = 0.45;
-      material.side = THREE.DoubleSide;
-      material.roughness = 0.8;
-    }
 
     if (name === "facadeGlass") material.roughness = 0.25;
 

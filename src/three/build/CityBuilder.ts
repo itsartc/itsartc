@@ -36,6 +36,8 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   group.name = "city";
   const colliders: THREE.Box3[] = [];
   const geometries: THREE.BufferGeometry[] = [];
+  /** Materials created here rather than by the shared library. */
+  const ownedMaterials: THREE.Material[] = [];
 
   const slab = (
     x: number,
@@ -128,7 +130,7 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   merge(roofParts, materials.get("roof", 40, 40), "roofs");
 
   // --- Props ---------------------------------------------------------------
-  buildProps(map.props, materials, group, geometries, colliders);
+  buildProps(map.props, materials, group, geometries, colliders, ownedMaterials);
 
   return {
     group,
@@ -136,6 +138,8 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
     dispose: () => {
       geometries.forEach((g) => g.dispose());
       geometries.length = 0;
+      ownedMaterials.forEach((m) => m.dispose());
+      ownedMaterials.length = 0;
     },
   };
 }
@@ -147,6 +151,7 @@ function buildProps(
   group: THREE.Group,
   geometries: THREE.BufferGeometry[],
   colliders: THREE.Box3[],
+  ownedMaterials: THREE.Material[],
 ) {
   const byType = new Map<Prop["type"], Prop[]>();
   for (const p of props) {
@@ -160,6 +165,7 @@ function buildProps(
     material: THREE.Material,
     list: Prop[],
     name: string,
+    vary?: (index: number) => { scale: number; color?: THREE.Color },
   ) => {
     geometries.push(geo);
     const mesh = new THREE.InstancedMesh(geo, material, list.length);
@@ -167,13 +173,17 @@ function buildProps(
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
-    const one = new THREE.Vector3(1, 1, 1);
+    const scale = new THREE.Vector3();
     list.forEach((p, i) => {
+      const v = vary?.(i);
       q.setFromAxisAngle(up, p.rotation);
-      m.compose(new THREE.Vector3(p.x, KERB_HEIGHT, p.z), q, one);
+      scale.setScalar(v?.scale ?? 1);
+      m.compose(new THREE.Vector3(p.x, KERB_HEIGHT, p.z), q, scale);
       mesh.setMatrixAt(i, m);
+      if (v?.color) mesh.setColorAt(i, v.color);
     });
     mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.computeBoundingSphere();
     group.add(mesh);
   };
@@ -222,23 +232,60 @@ function buildProps(
 
   const trees = byType.get("tree");
   if (trees) {
-    const trunk = new THREE.CylinderGeometry(0.18, 0.26, 4.2, 7);
-    trunk.translate(0, 2.1, 0);
-    place(trunk, materials.get("bark", 2, 4), trees, "trunks");
+    // Deterministic per-tree variation, so the same city always grows the same
+    // trees but no two neighbours look stamped from one mould.
+    const wobble = (i: number, salt: number) => {
+      const x = Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    };
 
-    // Crossed billboards: the classic cheap tree that still reads as foliage
-    // in the round, and costs four triangles.
-    const leafA = new THREE.PlaneGeometry(4.6, 4.6);
-    leafA.translate(0, 5.2, 0);
-    const leafB = leafA.clone();
-    leafB.rotateY(Math.PI / 2);
-    place(mergeGeometries([leafA, leafB]), materials.get("foliage", 1, 1), trees, "foliage");
+    const trunk = new THREE.CylinderGeometry(0.16, 0.24, 3.4, 7);
+    trunk.translate(0, 1.7, 0);
+    place(trunk, materials.get("bark", 1.5, 3.4), trees, "trunks", (i) => ({
+      scale: 0.85 + wobble(i, 1) * 0.4,
+    }));
+
+    // Canopy: three overlapping spheres rather than crossed billboards. The
+    // supplied foliage image turned out to be a near-opaque white sheet — its
+    // alpha channel averages 245/255 — so alpha testing had nothing to cut and
+    // every tree rendered as a white rectangle. Geometry has no such doubt,
+    // reads correctly from every angle, and instances just as cheaply.
+    const blobs = [
+      { r: 1.75, x: 0, y: 4.5, z: 0 },
+      { r: 1.25, x: 0.95, y: 3.75, z: 0.35 },
+      { r: 1.15, x: -0.8, y: 3.95, z: -0.5 },
+      { r: 1.05, x: 0.15, y: 5.55, z: -0.35 },
+    ].map((b) => {
+      const geo = new THREE.IcosahedronGeometry(b.r, 1);
+      geo.scale(1, 0.88, 1); // slightly flattened reads more like a canopy
+      geo.translate(b.x, b.y, b.z);
+      return geo;
+    });
+
+    const canopyMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff, // tinted per instance below
+      roughness: 0.92,
+      metalness: 0,
+      flatShading: true,
+      // The scene's image-based lighting is bright and desaturating; foliage
+      // needs far less of it than glass and metal do, or every canopy washes
+      // out to pale mint.
+      envMapIntensity: 0.25,
+    });
+    ownedMaterials.push(canopyMaterial);
+
+    const green = new THREE.Color();
+    place(mergeGeometries(blobs), canopyMaterial, trees, "canopies", (i) => ({
+      scale: 0.85 + wobble(i, 2) * 0.45,
+      // A spread of greens keeps a row of street trees from reading as clones.
+      color: green.setHSL(0.25 + wobble(i, 3) * 0.06, 0.52, 0.19 + wobble(i, 4) * 0.09).clone(),
+    }));
 
     for (const p of trees) {
       colliders.push(
         new THREE.Box3(
           new THREE.Vector3(p.x - 0.3, 0, p.z - 0.3),
-          new THREE.Vector3(p.x + 0.3, 4, p.z + 0.3),
+          new THREE.Vector3(p.x + 0.3, 3.4, p.z + 0.3),
         ),
       );
     }
