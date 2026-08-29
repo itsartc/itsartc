@@ -3,10 +3,10 @@ import * as THREE from "three";
 /**
  * Signage and façade textures drawn in code.
  *
- * These are the surfaces a sponsor buys — at present a vertical LED banner hung
- * down a façade. Drawing them rather than shipping images means a building's
- * branding is *data*: change a name and two colours and the façade re-skins
- * itself, with no asset pipeline and no download.
+ * These are the surfaces a sponsor buys: a vertical LED banner hung down a
+ * façade, a marquee over a venue's doors. Drawing them rather than shipping
+ * images means a building's branding is *data* — change a name and two colours
+ * and the façade re-skins itself, with no asset pipeline and no download.
  *
  * Everything is emissive-ready: the colours are drawn bright so that, with
  * bloom, they read as light sources rather than painted panels.
@@ -75,6 +75,46 @@ export function makeVerticalBanner(text: string, top: string, bottom: string): T
   letters.forEach((letter, i) => {
     ctx.fillText(letter, W / 2, emblemH + slot * (i + 0.5));
   });
+
+  return toTexture(el);
+}
+
+/**
+ * A venue marquee: a small standing line over a large title.
+ *
+ * Authored wide and shallow so it maps onto a board above an entrance without
+ * stretching. The title is measured and fitted rather than assumed — a venue
+ * name is authored data, and a fixed size clips the long ones.
+ */
+export function makeMarquee(title: string, standing: string, accent: string): THREE.CanvasTexture {
+  const W = 1024;
+  const H = 256;
+  const { ctx, el } = canvas(W, H);
+
+  ctx.fillStyle = "#17110d";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = accent;
+  ctx.fillRect(0, 0, W, 10);
+  ctx.fillRect(0, H - 10, W, 10);
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  ctx.fillStyle = accent;
+  ctx.font = "700 34px ui-monospace, monospace";
+  ctx.fillText(standing.toUpperCase().split("").join(" "), W / 2, 62);
+
+  ctx.fillStyle = "#fdf3e6";
+  const label = title.toUpperCase();
+  let size = 118;
+  ctx.font = `700 ${size}px ui-sans-serif, system-ui, sans-serif`;
+  const maxWidth = W * 0.88;
+  const measured = ctx.measureText(label).width;
+  if (measured > maxWidth) {
+    size = Math.floor(size * (maxWidth / measured));
+    ctx.font = `700 ${size}px ui-sans-serif, system-ui, sans-serif`;
+  }
+  ctx.fillText(label, W / 2, 160);
 
   return toTexture(el);
 }
