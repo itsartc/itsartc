@@ -246,6 +246,49 @@ function buildProps(
     place(geo, materials.get("plaza", 2, 2, "#b8ae9c"), planters, "planters");
   }
 
+  const fountains = byType.get("fountain");
+  if (fountains) {
+    const basin = new THREE.CylinderGeometry(2.2, 2.4, 0.38, 24);
+    basin.translate(0, 0.19, 0);
+    const rim = new THREE.TorusGeometry(2.04, 0.17, 8, 24);
+    rim.rotateX(Math.PI / 2);
+    rim.translate(0, 0.4, 0);
+    const pedestal = new THREE.CylinderGeometry(0.34, 0.52, 1.05, 16);
+    pedestal.translate(0, 0.9, 0);
+    const bowl = new THREE.CylinderGeometry(0.82, 0.56, 0.26, 16);
+    bowl.translate(0, 1.52, 0);
+    const spout = new THREE.CylinderGeometry(0.1, 0.14, 0.65, 12);
+    spout.translate(0, 1.96, 0);
+    place(
+      mergeGeometries([basin, rim, pedestal, bowl, spout]),
+      materials.get("plaza", 4, 4, "#b8c0c7"),
+      fountains,
+      "fountain-stone",
+    );
+
+    const water = new THREE.CylinderGeometry(1.92, 1.92, 0.05, 24);
+    water.translate(0, 0.4, 0);
+    const waterMaterial = new THREE.MeshStandardMaterial({
+      color: 0x4da3d9,
+      roughness: 0.2,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.78,
+      depthWrite: false,
+    });
+    ownedMaterials.push(waterMaterial);
+    place(water, waterMaterial, fountains, "fountain-water");
+
+    for (const fountain of fountains) {
+      colliders.push(
+        new THREE.Box3(
+          new THREE.Vector3(fountain.x - 2.4, 0, fountain.z - 2.4),
+          new THREE.Vector3(fountain.x + 2.4, 2.3, fountain.z + 2.4),
+        ),
+      );
+    }
+  }
+
   const trees = byType.get("tree");
   if (trees) {
     // Deterministic per-tree variation, so the same city always grows the same

@@ -51,7 +51,7 @@ export interface Sidewalk {
   d: number;
 }
 
-export type PropType = "streetlight" | "tree" | "bin" | "bench" | "planter";
+export type PropType = "streetlight" | "tree" | "bin" | "bench" | "planter" | "fountain";
 
 export interface Prop {
   type: PropType;
