@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { Building } from "@/world/schema";
 import { KERB_HEIGHT } from "@/world/schema";
 import { entranceSide, entranceYaw, orientedBox, orientedTiltedBox, orientedYawBox, transformFromEntrance } from "../geometry";
-import { makeTicker, makeVerticalBanner } from "../../materials/signTextures";
+import { makeVerticalBanner } from "../../materials/signTextures";
 import { BLOOM_LAYER } from "../../postprocessing/SelectiveBloom";
 import type { DistrictSignature, EntranceSign, SignatureContext } from "./types";
 
@@ -27,8 +27,7 @@ import type { DistrictSignature, EntranceSign, SignatureContext } from "./types"
  *    real members, not a mapped lattice, so it casts and catches light and
  *    keeps its depth at any angle.
  *  - **A portal and brow.** A twenty-metre opening under a canopy that runs the
- *    full frontage, holding the doorway, the ticker and the wordmark in one
- *    composition.
+ *    full frontage, holding the doorway and the wordmark in one composition.
  *  - **A halo.** Two rings above the roofline, the inner one turning. It is the
  *    district's emblem and the one element that moves.
  *
@@ -114,7 +113,6 @@ export const aiDistrict: DistrictSignature = {
     buildOculus(ctx, origin, yaw);
     buildCrown(ctx, origin, yaw, shape);
     buildHalo(ctx, origin, yaw, shape);
-    buildStreetEdge(building, ctx, origin, yaw, shape);
   },
 };
 
@@ -801,60 +799,4 @@ function buildHalo(ctx: SignatureContext, origin: THREE.Vector3, yaw: number, sh
   ctx.animate((_elapsed, dt) => {
     inner.rotation.y += dt * 0.35;
   });
-}
-
-/** Ticker band and a continuous neon sill at pavement level. */
-function buildStreetEdge(
-  building: Building,
-  ctx: SignatureContext,
-  origin: THREE.Vector3,
-  yaw: number,
-  shape: Shape,
-) {
-  const { flatHalfWidth, flatHalfDepth, halfWidth, depth, base } = shape;
-
-  const ticker = makeTicker(`${building.name} · open`, "#7dd3fc");
-  ctx.ownTexture(ticker);
-  ticker.repeat.set(3, 1);
-  ctx.add(
-    "ai-ticker",
-    () =>
-      new THREE.MeshStandardMaterial({
-        map: ticker,
-        color: 0x2a2a2a,
-        emissive: 0xffffff,
-        emissiveMap: ticker,
-        emissiveIntensity: 1.1,
-        roughness: 0.5,
-      }),
-    orientedBox(PORTAL_HALF_WIDTH * 2 - 1.2, 0.9, 0.25, 0, base + 5.4, 0.78, origin, yaw),
-    { bloom: true },
-  );
-  // The one place the ticker earns its name. A texture offset is the whole
-  // cost: no geometry is touched and the material is shared with nothing else.
-  ctx.animate((_elapsed, dt) => {
-    ticker.offset.x = (ticker.offset.x - dt * 0.05) % 1;
-  });
-
-  const sillY = base + 0.5;
-  const sill: THREE.BufferGeometry[] = [
-    orientedBox(flatHalfWidth * 2, 0.22, 0.22, 0, sillY, 0.66, origin, yaw),
-    orientedBox(flatHalfWidth * 2, 0.22, 0.22, 0, sillY, -depth - 0.66, origin, yaw),
-    orientedBox(0.22, 0.22, flatHalfDepth * 2, -halfWidth - 0.66, sillY, -depth / 2, origin, yaw),
-    orientedBox(0.22, 0.22, flatHalfDepth * 2, halfWidth + 0.66, sillY, -depth / 2, origin, yaw),
-  ];
-  for (const corner of corners(shape)) {
-    sill.push(drumRing(DRUM_RADIUS + 0.6, 0.22, sillY, corner, origin, yaw));
-  }
-
-  ctx.add(
-    "ai-neon-sill",
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: new THREE.Color(0x35f0c0).multiplyScalar(1.5),
-        toneMapped: false,
-      }),
-    sill,
-    { bloom: true },
-  );
 }

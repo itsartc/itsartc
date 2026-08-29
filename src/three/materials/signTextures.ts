@@ -3,10 +3,10 @@ import * as THREE from "three";
 /**
  * Signage and façade textures drawn in code.
  *
- * These are the surfaces a sponsor buys: a vertical LED banner hung down a
- * façade, a ticker above an entrance. Drawing them rather than shipping images
- * means a building's branding is *data* — change a name and two colours and the
- * façade re-skins itself, with no asset pipeline and no download.
+ * These are the surfaces a sponsor buys — at present a vertical LED banner hung
+ * down a façade. Drawing them rather than shipping images means a building's
+ * branding is *data*: change a name and two colours and the façade re-skins
+ * itself, with no asset pipeline and no download.
  *
  * Everything is emissive-ready: the colours are drawn bright so that, with
  * bloom, they read as light sources rather than painted panels.
@@ -21,13 +21,9 @@ function canvas(w: number, h: number) {
   return { ctx, el };
 }
 
-function toTexture(el: HTMLCanvasElement, repeat = false): THREE.CanvasTexture {
+function toTexture(el: HTMLCanvasElement): THREE.CanvasTexture {
   const tex = new THREE.CanvasTexture(el);
   tex.colorSpace = THREE.SRGBColorSpace;
-  if (repeat) {
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-  }
   tex.anisotropy = 8;
   return tex;
 }
@@ -81,27 +77,4 @@ export function makeVerticalBanner(text: string, top: string, bottom: string): T
   });
 
   return toTexture(el);
-}
-
-/** A scrolling-style ticker band above an entrance. */
-export function makeTicker(text: string, accent: string): THREE.CanvasTexture {
-  const W = 1024;
-  const H = 64;
-  const { ctx, el } = canvas(W, H);
-
-  ctx.fillStyle = "#070a0d";
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.fillStyle = accent;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  ctx.font = "700 34px ui-monospace, monospace";
-  const phrase = `${text.toUpperCase()}   ◂◂◂   `;
-  let x = 12;
-  while (x < W) {
-    ctx.fillText(phrase, x, H / 2 + 2);
-    x += ctx.measureText(phrase).width;
-  }
-
-  return toTexture(el, true);
 }
