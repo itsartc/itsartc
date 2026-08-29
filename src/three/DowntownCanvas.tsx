@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Minimap from "@/components/Minimap";
 
 /**
  * Mounts the generated city.
@@ -11,8 +12,15 @@ import { useEffect, useRef, useState } from "react";
  */
 export default function DowntownCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<{ playerState: () => { x: number; z: number; facing: number } } | null>(
+    null,
+  );
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Stable identity, so the minimap's animation loop is not torn down and
+  // rebuilt on every render of this component.
+  const getPlayer = useCallback(() => rendererRef.current?.playerState() ?? null, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,6 +32,7 @@ export default function DowntownCanvas() {
         if (cancelled || !containerRef.current) return;
         const instance = new DowntownRenderer(containerRef.current);
         renderer = instance;
+        rendererRef.current = instance;
         (window as unknown as { __downtown?: unknown }).__downtown = instance;
         setReady(true);
       } catch (err) {
@@ -35,6 +44,7 @@ export default function DowntownCanvas() {
       cancelled = true;
       renderer?.dispose();
       renderer = null;
+      rendererRef.current = null;
       delete (window as unknown as { __downtown?: unknown }).__downtown;
     };
   }, []);
@@ -69,6 +79,7 @@ export default function DowntownCanvas() {
           <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-4 py-2 font-mono text-[11px] tracking-wide text-white/70 backdrop-blur">
             ↑ ↓ ← →  move  ·  shift  run  ·  drag  look around
           </div>
+          <Minimap getPlayer={getPlayer} />
         </>
       )}
     </div>

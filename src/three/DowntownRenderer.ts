@@ -168,6 +168,21 @@ export class DowntownRenderer {
     this.renderer.render(this.scene, this.camera);
   };
 
+  /**
+   * Minimal per-frame state for HUD overlays.
+   *
+   * Deliberately separate from getDiagnostics, which builds a large object and
+   * is meant for tests and the console. An overlay reading it sixty times a
+   * second would allocate far more than it needs.
+   */
+  playerState(): { x: number; z: number; facing: number } {
+    return {
+      x: this.player.position.x,
+      z: this.player.position.z,
+      facing: this.player.facing,
+    };
+  }
+
   get debug() {
     return { collision: this.collision, player: this.player, chase: this.chase, city: downtown, THREE };
   }
