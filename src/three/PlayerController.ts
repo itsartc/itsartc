@@ -14,13 +14,18 @@ import { PLAYER_HEIGHT, PLAYER_RADIUS } from "./build/PlayerAvatar";
  * figures rather than tuned magic numbers.
  */
 
-/** Metres per second. A brisk walk, and a jog when shift is held. */
-const WALK_SPEED = 4.2;
-const RUN_SPEED = 8.5;
+/**
+ * Metres per second. Faster than a real walk on purpose: a person covers about
+ * 1.4 m/s, but the city is over 500 m across and crossing it at a true walking
+ * pace is tedious. These are game speeds tuned to the block size — one 74 m
+ * block takes about twelve seconds at a walk, four at a run.
+ */
+const WALK_SPEED = 6.4;
+const RUN_SPEED = 12;
 
 /** Seconds to reach top speed, and to stop from it. */
-const ACCEL_TIME = 0.14;
-const DECEL_TIME = 0.1;
+const ACCEL_TIME = 0.16;
+const DECEL_TIME = 0.11;
 
 /** How fast the avatar turns toward its direction of travel, radians/sec. */
 const TURN_RATE = 11;

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { Building, CityMap, Prop } from "@/world/schema";
 import { KERB_HEIGHT } from "@/world/schema";
 import { CityMaterials, type MaterialName } from "../materials/CityMaterials";
+import { buildRoadMarkings } from "./RoadMarkings";
 
 /**
  * Turns a CityMap into geometry.
@@ -38,6 +39,7 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   const geometries: THREE.BufferGeometry[] = [];
   /** Materials created here rather than by the shared library. */
   const ownedMaterials: THREE.Material[] = [];
+  const disposers: Array<() => void> = [];
 
   const slab = (
     x: number,
@@ -69,6 +71,13 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
     materials.get("road", map.size.w, map.size.d),
     "roads",
   );
+
+  // --- Lane markings and crossings ----------------------------------------
+  const markings = buildRoadMarkings(map);
+  if (markings) {
+    group.add(markings.mesh);
+    disposers.push(markings.dispose);
+  }
 
   // --- Pavement ------------------------------------------------------------
   merge(
@@ -145,6 +154,8 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
       geometries.length = 0;
       ownedMaterials.forEach((m) => m.dispose());
       ownedMaterials.length = 0;
+      disposers.forEach((d) => d());
+      disposers.length = 0;
     },
   };
 }
