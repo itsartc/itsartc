@@ -1,31 +1,21 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import Monitoring from "@/components/Monitoring";
 
 export const metadata: Metadata = {
-  title: "itsartc — a live professional world",
-  description:
-    "A live professional networking world with cozy top-down pixel graphics. Walk around, discover real people, and connect through serendipity.",
+  title: "itsartc",
+  description: "A live professional world.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  themeColor: "#1e2733",
+  themeColor: "#12161c",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
-        <Monitoring />
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

@@ -9,13 +9,12 @@ body {
 
 body {
   margin: 0;
-  background: #1e2733;
-  color: #f5efe0;
+  background: #12161c;
+  color: #e8eaed;
   -webkit-font-smoothing: antialiased;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 canvas {
-  image-rendering: pixelated;
   display: block;
 }
