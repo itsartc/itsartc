@@ -14,8 +14,7 @@ import { SkyEnvironment, SKY_HORIZON_COLOR } from "./SkyEnvironment";
 /**
  * Renders Downtown — the city we generate ourselves — and the player in it.
  *
- * The counterpart to CityRenderer, which loads an imported GLB. This one takes
- * no download beyond its texture library: the geometry is produced on the
+ * Takes no download beyond its texture library: the geometry is produced on the
  * client from a few hundred bytes of layout data, which is why it starts
  * instantly and why every building is an editable record rather than baked
  * triangles.

@@ -3,9 +3,9 @@ import type * as THREE from "three";
 /**
  * What the player needs to know about the world to walk through it.
  *
- * Both collision backends implement this: the BVH one that raycasts an imported
- * mesh, and the box one built from city data. The player controller depends on
- * the interface, so swapping worlds does not touch movement code.
+ * The player and camera depend on this rather than on a concrete backend, so a
+ * world with different collision needs — a mesh to raycast, a physics engine —
+ * can be introduced without touching movement code.
  */
 export interface WorldCollision {
   /** Surface height directly below a point, or null if nothing is under it. */
