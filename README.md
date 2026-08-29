@@ -4,16 +4,41 @@ A live professional world, rendered in 3D.
 
 ## Status
 
-The world is `procedural-city-6`, rendered in Three.js at `/`.
+The world is `procedural-city-6`, rendered in Three.js at `/`. A player walks
+it in third person.
+
+## Controls
+
+| | |
+|---|---|
+| Arrow keys / WASD | walk, relative to the camera |
+| Shift | run |
+| Drag | look around |
 
 ## What's here
 
 ```
 app/                              layout, global styles, the world route
-src/three/CityRenderer.ts         scene, camera, lighting, model loading
+src/three/CityRenderer.ts         scene, lighting, model loading, main loop
 src/three/CityCanvas.tsx          client-only mount + load progress
+src/three/CityCollision.ts        BVH ground/wall queries and spawn finding
+src/three/PlayerController.ts     movement, gravity, wall sliding
+src/three/ThirdPersonCamera.ts    chase camera
+src/three/Input.ts                keyboard
+src/three/build/PlayerAvatar.ts   placeholder avatar
 public/assets/procedural-city-6/  city.glb — the compressed world
 ```
+
+## Units and scale
+
+The model is metric: ~248 x 196 m across, towers to ~112 m. Speeds and sizes
+throughout are real figures — a 1.8 m avatar, 4.2 m/s walk, 8.5 m/s run — which
+is what makes the camera distance and pace feel right without tuning.
+
+The spawn point is **found, not hardcoded**: the city is sampled on a grid for
+open ground at street level with headroom above, biased toward the middle of the
+site. A fixed coordinate would land inside a building the first time the model is
+re-exported.
 
 ## The world model
 

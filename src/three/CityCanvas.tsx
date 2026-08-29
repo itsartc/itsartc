@@ -81,7 +81,7 @@ export default function CityCanvas() {
       {ready && (
         <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2">
           <div className="rounded-full bg-black/55 px-4 py-2 font-mono text-[11px] tracking-wide text-white/70 backdrop-blur">
-            drag to look · scroll to zoom
+            ↑ ↓ ← →  move  ·  shift  run  ·  drag  look around
           </div>
         </div>
       )}

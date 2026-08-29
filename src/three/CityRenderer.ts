@@ -1,11 +1,15 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { CityCollision } from "./CityCollision";
+import { Input } from "./Input";
+import { PlayerController } from "./PlayerController";
+import { ThirdPersonCamera } from "./ThirdPersonCamera";
+import { buildAvatar } from "./build/PlayerAvatar";
 
 /**
- * Renders the procedural-city-6 world.
+ * Renders the procedural-city-6 world and the player walking through it.
  *
  * Owns the Scene, camera, WebGL renderer and animation loop. Model loading is
  * the only asynchronous step; everything else is set up synchronously so a
@@ -13,30 +17,33 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
  *
  * ## Camera
  *
- * A fixed elevated, angled view rather than a free-flying one: the product's
- * whole premise is that a street and its building façades read clearly from the
- * default angle. Orbit is enabled for now as an inspection aid while the world
- * is being evaluated, and is trivially removed once the gameplay camera lands.
+ * A third-person chase camera behind the player, in the vein of a modern
+ * open-world action game. Movement input is read relative to wherever it looks,
+ * and it eases back behind the player as they walk.
  *
  * ## Compression
  *
  * The GLB is meshopt-compressed. The decoder is a small JS module imported from
  * three itself rather than fetched from a CDN, so the app has no external
  * runtime dependency and works offline.
+ *
+ * ## Units
+ *
+ * The model measures ~248 x 196 units across with towers ~112 tall, which reads
+ * as metres. Every distance and speed in this subsystem is therefore metric.
  */
 
-/** Downward viewing angle from horizontal, in degrees. */
-const CAMERA_PITCH_DEG = 38;
-
-/** Rotation off the model's axis, so buildings show two faces, not one. */
-const CAMERA_YAW_DEG = 35;
-
-const CAMERA_FOV = 50;
-
-/** Breathing room when framing the whole model. */
-const FRAME_MARGIN = 1.25;
-
+const CAMERA_FOV = 55;
 const MAX_PIXEL_RATIO = 2;
+
+/** Clamp for a single frame's delta, in seconds — protects against tab resume. */
+const MAX_FRAME_DELTA = 0.1;
+
+/** Vertical bob while walking, in metres, and its rate. */
+const BOB_AMPLITUDE = 0.05;
+const BOB_RATE = 9;
+
+const MODEL_URL = "/assets/procedural-city-6/city.glb";
 
 export interface CityDiagnostics {
   fps: number;
@@ -47,37 +54,42 @@ export interface CityDiagnostics {
   programs: number;
   pixelRatio: number;
   size: { width: number; height: number };
+  ready: boolean;
   model: {
     bboxMin: [number, number, number];
     bboxMax: [number, number, number];
     sizeUnits: [number, number, number];
     meshes: number;
   } | null;
-  camera: {
+  player: {
     position: [number, number, number];
-    target: [number, number, number];
-    fovDeg: number;
-    pitchDeg: number;
-    yawDeg: number;
-    distance: number;
-  };
+    facingDeg: number;
+    speed: number;
+    moving: boolean;
+    grounded: boolean;
+    running: boolean;
+  } | null;
+  camera: ThirdPersonCamera["info"] | null;
 }
 
 export interface CityRendererOptions {
-  /** Called with 0..1 as the model downloads. */
   onProgress?: (fraction: number) => void;
   onLoaded?: () => void;
   onError?: (message: string) => void;
 }
-
-const MODEL_URL = "/assets/procedural-city-6/city.glb";
 
 export class CityRenderer {
   private container: HTMLElement;
   private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
-  private controls: OrbitControls;
+
+  private collision: CityCollision | null = null;
+  private input: Input | null = null;
+  private player: PlayerController | null = null;
+  private chase: ThirdPersonCamera | null = null;
+  private avatar: THREE.Group | null = null;
+  private disposeAvatar: (() => void) | null = null;
 
   private model: THREE.Group | null = null;
   private modelStats: CityDiagnostics["model"] = null;
@@ -86,9 +98,8 @@ export class CityRenderer {
   private resizeObserver: ResizeObserver | null = null;
   private disposed = false;
 
-  private distance = 300;
-  private readonly target = new THREE.Vector3();
   private lastTime = 0;
+  private elapsed = 0;
   private fps = 0;
 
   constructor(container: HTMLElement, options: CityRendererOptions = {}) {
@@ -114,22 +125,14 @@ export class CityRenderer {
     // --- Scene ------------------------------------------------------------
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x9fc4e0);
-    this.scene.fog = new THREE.Fog(0x9fc4e0, 400, 1400);
+    this.scene.fog = new THREE.Fog(0x9fc4e0, 120, 620);
 
-    // A generated indoor-style environment gives PBR materials something to
-    // reflect. Without it, metal and glass render as flat black.
+    // A generated environment gives PBR materials something to reflect. Without
+    // it, the model's metal and glass render as flat black.
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-    // --- Camera + controls -------------------------------------------------
-    this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, width / height, 0.5, 5000);
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
-    this.controls.maxPolarAngle = Math.PI / 2 - 0.05; // never go under the ground
-    this.controls.minDistance = 20;
-    this.controls.maxDistance = 1500;
-
+    this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, width / height, 0.1, 2000);
     this.addLighting();
 
     // --- Model -------------------------------------------------------------
@@ -139,10 +142,14 @@ export class CityRenderer {
       MODEL_URL,
       (gltf) => {
         if (this.disposed) return;
-        this.model = gltf.scene;
-        this.scene.add(this.model);
-        this.measureAndFrame();
-        options.onLoaded?.();
+        try {
+          this.model = gltf.scene;
+          this.scene.add(this.model);
+          this.setupWorld();
+          options.onLoaded?.();
+        } catch (err) {
+          options.onError?.(err instanceof Error ? err.message : String(err));
+        }
       },
       (event) => {
         if (event.total > 0) options.onProgress?.(event.loaded / event.total);
@@ -176,26 +183,20 @@ export class CityRenderer {
   }
 
   /**
-   * Reads the model's real bounds and frames the camera to them.
-   *
-   * Framing is derived rather than hard-coded because the model's scale is
-   * whatever Blender exported; a fixed distance that suits one export would put
-   * the next one off-screen.
+   * Builds everything that depends on the loaded city: collision, a spawn point
+   * on the street, the player, and the camera behind them.
    */
-  private measureAndFrame() {
+  private setupWorld() {
     if (!this.model) return;
 
     const box = new THREE.Box3().setFromObject(this.model);
     const size = new THREE.Vector3();
-    const centre = new THREE.Vector3();
     box.getSize(size);
-    box.getCenter(centre);
 
     let meshes = 0;
     this.model.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) meshes++;
     });
-
     this.modelStats = {
       bboxMin: [box.min.x, box.min.y, box.min.z],
       bboxMax: [box.max.x, box.max.y, box.max.z],
@@ -203,36 +204,25 @@ export class CityRenderer {
       meshes,
     };
 
-    // Look at the middle of the site, a little above ground rather than at the
-    // midpoint of the tallest tower.
-    this.target.set(centre.x, box.min.y + size.y * 0.18, centre.z);
+    this.collision = new CityCollision(this.model);
 
-    // Distance that fits the footprint's larger horizontal axis in view.
-    const vFov = THREE.MathUtils.degToRad(CAMERA_FOV);
-    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
-    const span = Math.max(size.x, size.z);
-    this.distance = Math.max(
-      span / 2 / Math.tan(hFov / 2),
-      size.y / 2 / Math.tan(vFov / 2),
-    ) * FRAME_MARGIN;
+    // Find open street rather than guessing a coordinate: a hardcoded spawn
+    // would land inside a building the moment the model is re-exported.
+    const spawn =
+      this.collision.findStreetSpawn(box) ??
+      new THREE.Vector3(box.getCenter(new THREE.Vector3()).x, this.collision.groundY, box.getCenter(new THREE.Vector3()).z);
 
-    const pitch = THREE.MathUtils.degToRad(CAMERA_PITCH_DEG);
-    const yaw = THREE.MathUtils.degToRad(CAMERA_YAW_DEG);
-    const horizontal = Math.cos(pitch) * this.distance;
+    this.input = new Input();
+    this.player = new PlayerController(this.collision, this.input, spawn);
 
-    this.camera.position.set(
-      this.target.x + horizontal * Math.sin(yaw),
-      this.target.y + Math.sin(pitch) * this.distance,
-      this.target.z + horizontal * Math.cos(yaw),
-    );
-    this.camera.far = this.distance * 6;
-    this.camera.updateProjectionMatrix();
+    const avatar = buildAvatar();
+    this.avatar = avatar.group;
+    this.disposeAvatar = avatar.dispose;
+    this.avatar.position.copy(spawn);
+    this.scene.add(this.avatar);
 
-    this.controls.target.copy(this.target);
-    this.controls.update();
-
-    // Push fog out past the far side of the site so nothing greys out.
-    this.scene.fog = new THREE.Fog(0x9fc4e0, this.distance * 0.9, this.distance * 3.2);
+    this.chase = new ThirdPersonCamera(this.camera, this.collision, this.renderer.domElement);
+    this.chase.snapBehind(spawn, 0);
   }
 
   private handleResize = () => {
@@ -249,19 +239,45 @@ export class CityRenderer {
     if (this.disposed) return;
     this.frameId = requestAnimationFrame(this.loop);
 
-    const dt = this.lastTime === 0 ? 0 : (now - this.lastTime) / 1000;
+    // Frame rate is measured from the RAW delta. Measuring it from the clamped
+    // delta silently caps the reading at 1 / MAX_FRAME_DELTA, which reports a
+    // struggling renderer as a healthy one.
+    const rawDt = this.lastTime === 0 ? 0 : (now - this.lastTime) / 1000;
+    const dt = Math.min(rawDt, MAX_FRAME_DELTA);
     this.lastTime = now;
-    if (dt > 0) this.fps = this.fps === 0 ? 1 / dt : this.fps * 0.9 + (1 / dt) * 0.1;
+    this.elapsed += dt;
+    if (rawDt > 0) this.fps = this.fps === 0 ? 1 / rawDt : this.fps * 0.9 + (1 / rawDt) * 0.1;
 
-    this.controls.update();
+    if (this.player && this.chase && this.avatar) {
+      this.player.update(dt, this.chase.facingYaw);
+
+      this.avatar.position.set(
+        this.player.position.x,
+        this.player.position.y +
+          (this.player.isMoving ? Math.abs(Math.sin(this.elapsed * BOB_RATE)) * BOB_AMPLITUDE : 0),
+        this.player.position.z,
+      );
+      this.avatar.rotation.y = this.player.facing;
+
+      this.chase.update(dt, this.player.position, this.player.facing, this.player.isMoving);
+    }
+
     this.renderer.render(this.scene, this.camera);
   };
+
+  /**
+   * Internals exposed for smoke tests and console probing. Not part of the
+   * runtime contract — nothing in the app reads this.
+   */
+  get debug() {
+    return { collision: this.collision, player: this.player, chase: this.chase, THREE };
+  }
 
   getDiagnostics(): CityDiagnostics {
     const info = this.renderer.info;
     const size = new THREE.Vector2();
     this.renderer.getSize(size);
-    const p = this.camera.position;
+    const round = (n: number) => Math.round(n * 100) / 100;
     return {
       fps: Math.round(this.fps),
       drawCalls: info.render.calls,
@@ -271,15 +287,23 @@ export class CityRenderer {
       programs: info.programs?.length ?? 0,
       pixelRatio: this.renderer.getPixelRatio(),
       size: { width: size.x, height: size.y },
+      ready: this.player !== null,
       model: this.modelStats,
-      camera: {
-        position: [p.x, p.y, p.z],
-        target: [this.target.x, this.target.y, this.target.z],
-        fovDeg: CAMERA_FOV,
-        pitchDeg: CAMERA_PITCH_DEG,
-        yawDeg: CAMERA_YAW_DEG,
-        distance: this.distance,
-      },
+      player: this.player
+        ? {
+            position: [
+              round(this.player.position.x),
+              round(this.player.position.y),
+              round(this.player.position.z),
+            ],
+            facingDeg: Math.round(THREE.MathUtils.radToDeg(this.player.facing)),
+            speed: round(this.player.speed),
+            moving: this.player.isMoving,
+            grounded: this.player.isGrounded,
+            running: this.input?.running ?? false,
+          }
+        : null,
+      camera: this.chase ? this.chase.info : null,
     };
   }
 
@@ -294,7 +318,10 @@ export class CityRenderer {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
 
-    this.controls.dispose();
+    this.input?.dispose();
+    this.chase?.dispose();
+    this.collision?.dispose();
+    this.disposeAvatar?.();
 
     // Release every GPU resource the loaded model brought with it.
     this.scene.traverse((o) => {
