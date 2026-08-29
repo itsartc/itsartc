@@ -25,6 +25,13 @@ const FACADE_MATERIAL: Record<Building["style"], MaterialName> = {
   concrete: "facadeConcrete",
 };
 
+const WALL_THICKNESS = 0.72;
+const DOOR_WIDTH = 4.8;
+const DOOR_HEIGHT = 3.35;
+const SIGN_HEIGHT = 1.65;
+
+type EntranceSide = "north" | "south" | "east" | "west";
+
 export interface CityBuild {
   group: THREE.Group;
   /** Axis-aligned boxes the player collides with, in world metres. */
@@ -39,6 +46,7 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   const geometries: THREE.BufferGeometry[] = [];
   /** Materials created here rather than by the shared library. */
   const ownedMaterials: THREE.Material[] = [];
+  const ownedTextures: THREE.Texture[] = [];
   const disposers: Array<() => void> = [];
 
   const slab = (
@@ -105,12 +113,13 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   // building. Tint varies per building, so the key includes the colour.
   const byFacade = new Map<string, { parts: THREE.BufferGeometry[]; material: THREE.Material }>();
   const roofParts: THREE.BufferGeometry[] = [];
+  const floorParts: THREE.BufferGeometry[] = [];
+  const entranceFrameParts: THREE.BufferGeometry[] = [];
+  const entranceDoorParts: THREE.BufferGeometry[] = [];
+  const entranceGlowParts: THREE.BufferGeometry[] = [];
+  const signPlaqueParts: THREE.BufferGeometry[] = [];
 
   for (const b of map.buildings) {
-    // Sunk slightly into the pavement so the base is not coplanar with it.
-    const wallGeo = new THREE.BoxGeometry(b.w, b.height + 0.3, b.d);
-    wallGeo.translate(b.x + b.w / 2, KERB_HEIGHT + b.height / 2 - 0.15, b.z + b.d / 2);
-
     const name = FACADE_MATERIAL[b.style];
     // Repeats are driven by floor height, so window rows land on storeys.
     const material = materials.get(name, Math.max(b.w, b.d), b.height, b.color);
@@ -120,7 +129,26 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
       bucket = { parts: [], material };
       byFacade.set(key, bucket);
     }
-    bucket.parts.push(wallGeo);
+
+    // Four thin walls make a genuinely hollow building. The entrance-facing
+    // wall is split around a human-scale opening, so the rendered doorway and
+    // collision agree and the player can actually walk through it.
+    const shell = buildBuildingShell(b);
+    bucket.parts.push(...shell.walls);
+    colliders.push(...shell.colliders);
+    floorParts.push(shell.floor);
+
+    buildEntrance(
+      b,
+      group,
+      geometries,
+      ownedMaterials,
+      ownedTextures,
+      entranceFrameParts,
+      entranceDoorParts,
+      entranceGlowParts,
+      signPlaqueParts,
+    );
 
     // A parapet slab reads as a roof edge and hides the flat top. It overlaps
     // down into the walls rather than sitting exactly on them: a shared plane
@@ -129,12 +157,6 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
       slab(b.x - 0.3, b.z - 0.3, b.w + 0.6, b.d + 0.6, KERB_HEIGHT + b.height + 0.5, 0.75),
     );
 
-    colliders.push(
-      new THREE.Box3(
-        new THREE.Vector3(b.x, 0, b.z),
-        new THREE.Vector3(b.x + b.w, KERB_HEIGHT + b.height, b.z + b.d),
-      ),
-    );
   }
 
   let facadeIndex = 0;
@@ -142,6 +164,30 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
     merge(bucket.parts, bucket.material, `facades-${facadeIndex++}`);
   }
   merge(roofParts, materials.get("roof", 40, 40), "roofs");
+  merge(floorParts, materials.get("plaza", 40, 40), "building-floors");
+  merge(entranceFrameParts, materials.get("metal", 4, 4, "#252b31"), "entrance-frames");
+  merge(signPlaqueParts, materials.get("metal", 8, 2, "#20262d"), "building-sign-plaques");
+
+  const doorMaterial = new THREE.MeshStandardMaterial({
+    color: 0x6f9db8,
+    roughness: 0.18,
+    metalness: 0.22,
+    transparent: true,
+    opacity: 0.72,
+  });
+  ownedMaterials.push(doorMaterial);
+  merge(entranceDoorParts, doorMaterial, "open-glass-doors");
+
+  const entranceGlowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffd58a,
+    transparent: true,
+    opacity: 0.24,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  ownedMaterials.push(entranceGlowMaterial);
+  merge(entranceGlowParts, entranceGlowMaterial, "entrance-glow");
 
   // --- Props ---------------------------------------------------------------
   buildProps(map.props, materials, group, geometries, colliders, ownedMaterials);
@@ -154,10 +200,255 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
       geometries.length = 0;
       ownedMaterials.forEach((m) => m.dispose());
       ownedMaterials.length = 0;
+      ownedTextures.forEach((t) => t.dispose());
+      ownedTextures.length = 0;
       disposers.forEach((d) => d());
       disposers.length = 0;
     },
   };
+}
+
+interface BuildingShell {
+  walls: THREE.BufferGeometry[];
+  colliders: THREE.Box3[];
+  floor: THREE.BufferGeometry;
+}
+
+interface BoxPart {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+  h: number;
+  d: number;
+}
+
+/** A hollow four-wall shell with the entrance cut into the correct façade. */
+function buildBuildingShell(building: Building): BuildingShell {
+  const walls: THREE.BufferGeometry[] = [];
+  const colliders: THREE.Box3[] = [];
+  const side = building.entrance ? entranceSide(building) : null;
+  const top = KERB_HEIGHT + building.height;
+
+  const add = (part: BoxPart) => {
+    if (part.w <= 0 || part.h <= 0 || part.d <= 0) return;
+    walls.push(boxPart(part));
+    colliders.push(
+      new THREE.Box3(
+        new THREE.Vector3(part.x, part.y, part.z),
+        new THREE.Vector3(part.x + part.w, part.y + part.h, part.z + part.d),
+      ),
+    );
+  };
+
+  const north = { x: building.x, y: KERB_HEIGHT, z: building.z, w: building.w, h: building.height, d: WALL_THICKNESS };
+  const south = {
+    x: building.x,
+    y: KERB_HEIGHT,
+    z: building.z + building.d - WALL_THICKNESS,
+    w: building.w,
+    h: building.height,
+    d: WALL_THICKNESS,
+  };
+  const west = { x: building.x, y: KERB_HEIGHT, z: building.z, w: WALL_THICKNESS, h: building.height, d: building.d };
+  const east = {
+    x: building.x + building.w - WALL_THICKNESS,
+    y: KERB_HEIGHT,
+    z: building.z,
+    w: WALL_THICKNESS,
+    h: building.height,
+    d: building.d,
+  };
+
+  if (!side || !building.entrance) {
+    [north, south, west, east].forEach(add);
+  } else if (side === "north" || side === "south") {
+    const wall = side === "north" ? north : south;
+    const doorMin = building.entrance.x - DOOR_WIDTH / 2;
+    const doorMax = building.entrance.x + DOOR_WIDTH / 2;
+    add({ ...wall, w: doorMin - building.x });
+    add({ ...wall, x: doorMax, w: building.x + building.w - doorMax });
+    add({
+      ...wall,
+      x: doorMin,
+      y: KERB_HEIGHT + DOOR_HEIGHT,
+      w: DOOR_WIDTH,
+      h: top - (KERB_HEIGHT + DOOR_HEIGHT),
+    });
+    add(side === "north" ? south : north);
+    add(west);
+    add(east);
+  } else {
+    const wall = side === "west" ? west : east;
+    const doorMin = building.entrance.z - DOOR_WIDTH / 2;
+    const doorMax = building.entrance.z + DOOR_WIDTH / 2;
+    add({ ...wall, d: doorMin - building.z });
+    add({ ...wall, z: doorMax, d: building.z + building.d - doorMax });
+    add({
+      ...wall,
+      z: doorMin,
+      y: KERB_HEIGHT + DOOR_HEIGHT,
+      d: DOOR_WIDTH,
+      h: top - (KERB_HEIGHT + DOOR_HEIGHT),
+    });
+    add(side === "west" ? east : west);
+    add(north);
+    add(south);
+  }
+
+  // A separate interior floor makes the open doorway lead somewhere visible;
+  // venue-specific furnishing can be added later without changing the shell.
+  const floor = new THREE.BoxGeometry(
+    building.w - WALL_THICKNESS * 2,
+    0.04,
+    building.d - WALL_THICKNESS * 2,
+  );
+  floor.translate(
+    building.x + building.w / 2,
+    KERB_HEIGHT - 0.01,
+    building.z + building.d / 2,
+  );
+
+  return { walls, colliders, floor };
+}
+
+/** Adds the shared entrance architecture plus a data-driven name sign. */
+function buildEntrance(
+  building: Building,
+  group: THREE.Group,
+  geometries: THREE.BufferGeometry[],
+  ownedMaterials: THREE.Material[],
+  ownedTextures: THREE.Texture[],
+  frameParts: THREE.BufferGeometry[],
+  doorParts: THREE.BufferGeometry[],
+  glowParts: THREE.BufferGeometry[],
+  plaqueParts: THREE.BufferGeometry[],
+) {
+  if (!building.entrance) return;
+
+  const side = entranceSide(building);
+  const yaw = entranceYaw(side);
+  const origin = new THREE.Vector3(building.entrance.x, 0, building.entrance.z);
+  const frameWidth = 0.3;
+  const frameDepth = 0.32;
+  const doorLeafWidth = DOOR_WIDTH * 0.42;
+
+  // The glass leaves are shown slid open against the façade. That leaves the
+  // full doorway clear without needing an interaction system just to enter.
+  frameParts.push(
+    orientedBox(frameWidth, DOOR_HEIGHT, frameDepth, -DOOR_WIDTH / 2 - frameWidth / 2, KERB_HEIGHT + DOOR_HEIGHT / 2, 0.12, origin, yaw),
+    orientedBox(frameWidth, DOOR_HEIGHT, frameDepth, DOOR_WIDTH / 2 + frameWidth / 2, KERB_HEIGHT + DOOR_HEIGHT / 2, 0.12, origin, yaw),
+    orientedBox(DOOR_WIDTH + frameWidth * 2, frameWidth, frameDepth, 0, KERB_HEIGHT + DOOR_HEIGHT + frameWidth / 2, 0.12, origin, yaw),
+    orientedBox(DOOR_WIDTH + 1.5, 0.2, 1.55, 0, KERB_HEIGHT + DOOR_HEIGHT + 0.58, 0.65, origin, yaw),
+  );
+
+  doorParts.push(
+    orientedBox(doorLeafWidth, DOOR_HEIGHT - 0.32, 0.08, -DOOR_WIDTH / 2 - doorLeafWidth / 2 + 0.16, KERB_HEIGHT + (DOOR_HEIGHT - 0.32) / 2, 0.2, origin, yaw),
+    orientedBox(doorLeafWidth, DOOR_HEIGHT - 0.32, 0.08, DOOR_WIDTH / 2 + doorLeafWidth / 2 - 0.16, KERB_HEIGHT + (DOOR_HEIGHT - 0.32) / 2, 0.2, origin, yaw),
+  );
+
+  const glow = new THREE.PlaneGeometry(DOOR_WIDTH - 0.45, DOOR_HEIGHT - 0.35);
+  glow.translate(0, KERB_HEIGHT + (DOOR_HEIGHT - 0.35) / 2, -0.42);
+  transformFromEntrance(glow, origin, yaw);
+  glowParts.push(glow);
+
+  const signWidth = THREE.MathUtils.clamp(building.name.length * 0.72 + 3.2, 9, 17);
+  const signY = KERB_HEIGHT + DOOR_HEIGHT + 1.82;
+  plaqueParts.push(orientedBox(signWidth, SIGN_HEIGHT, 0.22, 0, signY, 0.18, origin, yaw));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillStyle = "#f5f7f8";
+  context.shadowColor = "rgba(0,0,0,0.65)";
+  context.shadowBlur = 10;
+  const label = building.name.toLocaleUpperCase();
+  let fontSize = 112;
+  do {
+    context.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
+    fontSize -= 4;
+  } while (context.measureText(label).width > 900 && fontSize > 52);
+  context.fillText(label, canvas.width / 2, canvas.height / 2 + 3);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.needsUpdate = true;
+  ownedTextures.push(texture);
+
+  const labelMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  ownedMaterials.push(labelMaterial);
+
+  const labelGeometry = new THREE.PlaneGeometry(signWidth - 0.55, SIGN_HEIGHT - 0.3);
+  labelGeometry.translate(0, signY, 0.305);
+  transformFromEntrance(labelGeometry, origin, yaw);
+  geometries.push(labelGeometry);
+
+  const labelMesh = new THREE.Mesh(labelGeometry, labelMaterial);
+  labelMesh.name = `building-sign-${building.id}`;
+  labelMesh.renderOrder = 2;
+  group.add(labelMesh);
+}
+
+function entranceSide(building: Building): EntranceSide {
+  const entrance = building.entrance!;
+  const distances: Array<[EntranceSide, number]> = [
+    ["north", Math.abs(entrance.z - building.z)],
+    ["south", Math.abs(entrance.z - (building.z + building.d))],
+    ["west", Math.abs(entrance.x - building.x)],
+    ["east", Math.abs(entrance.x - (building.x + building.w))],
+  ];
+  distances.sort((a, b) => a[1] - b[1]);
+  return distances[0][0];
+}
+
+/** Local +z always points out of the entrance. */
+function entranceYaw(side: EntranceSide): number {
+  if (side === "north") return Math.PI;
+  if (side === "east") return Math.PI / 2;
+  if (side === "west") return -Math.PI / 2;
+  return 0;
+}
+
+function boxPart(part: BoxPart): THREE.BufferGeometry {
+  const geometry = new THREE.BoxGeometry(part.w, part.h, part.d);
+  geometry.translate(part.x + part.w / 2, part.y + part.h / 2, part.z + part.d / 2);
+  return geometry;
+}
+
+function orientedBox(
+  w: number,
+  h: number,
+  d: number,
+  localX: number,
+  localY: number,
+  localZ: number,
+  origin: THREE.Vector3,
+  yaw: number,
+): THREE.BufferGeometry {
+  const geometry = new THREE.BoxGeometry(w, h, d);
+  geometry.translate(localX, localY, localZ);
+  transformFromEntrance(geometry, origin, yaw);
+  return geometry;
+}
+
+function transformFromEntrance(
+  geometry: THREE.BufferGeometry,
+  origin: THREE.Vector3,
+  yaw: number,
+) {
+  geometry.applyMatrix4(new THREE.Matrix4().makeRotationY(yaw));
+  geometry.translate(origin.x, origin.y, origin.z);
 }
 
 /** Instanced street furniture: one geometry, one draw call, many placements. */

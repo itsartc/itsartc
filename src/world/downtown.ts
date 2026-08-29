@@ -302,16 +302,24 @@ function addParkSurfaces(
 /** Identical furniture on every outer block keeps both map axes balanced. */
 function addSymmetricBlockProps(out: Prop[], x: number, z: number) {
   const edge = 2.2;
-  for (const offset of [13, 37, 61]) {
+  // Paired positions keep the middle of every façade clear for its entrance.
+  for (const offset of [13, 25, 49, 61]) {
     out.push({ type: "streetlight", x: x + offset, z: z - edge, rotation: 0 });
     out.push({ type: "streetlight", x: x + offset, z: z + BLOCK_D + edge, rotation: Math.PI });
   }
-  for (const offset of [14, 31, 48]) {
+  for (const offset of [12, 22, 40, 50]) {
     out.push({ type: "streetlight", x: x - edge, z: z + offset, rotation: -Math.PI / 2 });
     out.push({ type: "streetlight", x: x + BLOCK_W + edge, z: z + offset, rotation: Math.PI / 2 });
   }
-  out.push({ type: "bench", x: x + BLOCK_W / 2, z: z - edge, rotation: 0 });
-  out.push({ type: "bench", x: x + BLOCK_W / 2, z: z + BLOCK_D + edge, rotation: Math.PI });
+  for (const offset of [-12, 12]) {
+    out.push({ type: "bench", x: x + BLOCK_W / 2 + offset, z: z - edge, rotation: 0 });
+    out.push({
+      type: "bench",
+      x: x + BLOCK_W / 2 + offset,
+      z: z + BLOCK_D + edge,
+      rotation: Math.PI,
+    });
+  }
 }
 
 function addParkProps(
