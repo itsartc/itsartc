@@ -108,12 +108,17 @@ export class PlayerController {
     const v = this.input.vector();
     if (v.x === 0 && v.z === 0) return new THREE.Vector2(0, 0);
 
-    // Rotate the raw input by the camera's yaw so "up" is always away from the
-    // viewer. Without this the controls would flip meaning as the camera swings.
+    // Rotate the raw input into the camera's basis so "up" is always away from
+    // the viewer and "right" is always screen-right, whichever way it faces.
+    //
+    // The camera looks along forward = (sin yaw, cos yaw). Screen-right is
+    // cross(forward, worldUp) = (-cos yaw, sin yaw) — note the sign: looking
+    // along +Z, right is -X, not +X. Getting this backwards swaps the left and
+    // right arrow keys, which is exactly what it did.
     const sin = Math.sin(cameraYaw);
     const cos = Math.cos(cameraYaw);
-    const worldX = v.x * cos + v.z * sin;
-    const worldZ = -v.x * sin + v.z * cos;
+    const worldX = -v.x * cos + v.z * sin;
+    const worldZ = v.x * sin + v.z * cos;
 
     const speed = this.input.running ? RUN_SPEED : WALK_SPEED;
     return new THREE.Vector2(worldX, worldZ).normalize().multiplyScalar(speed);

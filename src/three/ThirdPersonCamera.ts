@@ -14,8 +14,8 @@ import { PLAYER_HEIGHT } from "./build/PlayerAvatar";
  */
 
 /** Resting distance behind the player, and how close a wall may push it. */
-const DISTANCE = 6.5;
-const MIN_DISTANCE = 1.4;
+const DISTANCE = 9;
+const MIN_DISTANCE = 1.8;
 
 /** Height of the point the camera looks at, up the player's body. */
 const LOOK_HEIGHT = PLAYER_HEIGHT * 0.75;

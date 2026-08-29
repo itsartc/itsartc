@@ -132,7 +132,12 @@ export class CityRenderer {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-    this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, width / height, 0.1, 2000);
+    // Near/far are deliberately tight. Depth-buffer precision falls off with
+    // the near:far ratio, and road markings are decals sitting a fraction of a
+    // millimetre above the road: at 0.1 near against 2000 far there is not
+    // enough precision to keep them apart, so they flicker as the camera moves.
+    // 0.5 : 900 is a 30x smaller ratio and still far past the fog.
+    this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, width / height, 0.5, 900);
     this.addLighting();
 
     // --- Model -------------------------------------------------------------
@@ -144,6 +149,7 @@ export class CityRenderer {
         if (this.disposed) return;
         try {
           this.model = gltf.scene;
+          this.tuneTextures(this.model);
           this.scene.add(this.model);
           this.setupWorld();
           options.onLoaded?.();
@@ -166,6 +172,36 @@ export class CityRenderer {
     window.addEventListener("resize", this.handleResize);
 
     this.frameId = requestAnimationFrame(this.loop);
+  }
+
+  /**
+   * Raises texture filtering quality across the model.
+   *
+   * A chase camera sits low and looks down the street, so road surfaces are
+   * viewed at a very grazing angle. Standard mipmapping picks an over-blurred
+   * level for that case and the fine road markings crawl and sparkle as the
+   * camera moves. Anisotropic filtering samples along the direction of
+   * compression instead, which is what stops the shimmering.
+   */
+  private tuneTextures(root: THREE.Object3D) {
+    const maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
+
+    const seen = new Set<THREE.Texture>();
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of materials) {
+        if (!material) continue;
+        for (const value of Object.values(material)) {
+          const tex = value as THREE.Texture;
+          if (!tex || !tex.isTexture || seen.has(tex)) continue;
+          seen.add(tex);
+          tex.anisotropy = maxAnisotropy;
+          tex.needsUpdate = true;
+        }
+      }
+    });
   }
 
   /**
