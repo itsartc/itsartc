@@ -98,8 +98,9 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
   const roofParts: THREE.BufferGeometry[] = [];
 
   for (const b of map.buildings) {
-    const wallGeo = new THREE.BoxGeometry(b.w, b.height, b.d);
-    wallGeo.translate(b.x + b.w / 2, KERB_HEIGHT + b.height / 2, b.z + b.d / 2);
+    // Sunk slightly into the pavement so the base is not coplanar with it.
+    const wallGeo = new THREE.BoxGeometry(b.w, b.height + 0.3, b.d);
+    wallGeo.translate(b.x + b.w / 2, KERB_HEIGHT + b.height / 2 - 0.15, b.z + b.d / 2);
 
     const name = FACADE_MATERIAL[b.style];
     // Repeats are driven by floor height, so window rows land on storeys.
@@ -112,8 +113,12 @@ export function buildCity(map: CityMap, materials: CityMaterials): CityBuild {
     }
     bucket.parts.push(wallGeo);
 
-    // A parapet slab reads as a roof edge and hides the flat top.
-    roofParts.push(slab(b.x - 0.3, b.z - 0.3, b.w + 0.6, b.d + 0.6, KERB_HEIGHT + b.height + 0.5, 0.5));
+    // A parapet slab reads as a roof edge and hides the flat top. It overlaps
+    // down into the walls rather than sitting exactly on them: a shared plane
+    // between two solids is a z-fight waiting for the right viewing angle.
+    roofParts.push(
+      slab(b.x - 0.3, b.z - 0.3, b.w + 0.6, b.d + 0.6, KERB_HEIGHT + b.height + 0.5, 0.75),
+    );
 
     colliders.push(
       new THREE.Box3(

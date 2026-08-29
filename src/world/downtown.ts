@@ -32,6 +32,15 @@ const ROWS = 5;
 
 const FLOOR_HEIGHT = 3.6;
 
+/**
+ * Street frontage depth. Bounded, because the block's east and west runs are
+ * inset by MAX_DEPTH to keep them clear of the north and south runs — without
+ * that inset the four runs overlap at every corner, putting two buildings in
+ * the same volume and z-fighting their shared faces.
+ */
+const MIN_DEPTH = 12;
+const MAX_DEPTH = 16;
+
 /** Mulberry32 — small, fast, and stable across engines. */
 function rng(seed: number) {
   let a = seed >>> 0;
@@ -187,13 +196,19 @@ function subdivideBlock(
   rand: () => number,
   pick: <T>(a: T[]) => T,
 ) {
-  const depthOf = () => 16 + rand() * 8;
+  const depthOf = () => MIN_DEPTH + rand() * (MAX_DEPTH - MIN_DEPTH);
 
+  // North and south runs own the corners and span the full block width. East
+  // and west runs are inset by MAX_DEPTH at both ends so they can never reach
+  // into a corner the other runs already occupy. Any shortfall between a run's
+  // actual depth and MAX_DEPTH leaves a small notch, which reads as a service
+  // gap rather than as an error.
+  const side = BLOCK_D - MAX_DEPTH * 2;
   const runs: Array<{ along: "x" | "z"; x: number; z: number; length: number; facing: number }> = [
     { along: "x", x: bx, z: bz, length: BLOCK_W, facing: -1 },
     { along: "x", x: bx, z: bz + BLOCK_D, length: BLOCK_W, facing: 1 },
-    { along: "z", x: bx, z: bz, length: BLOCK_D, facing: -1 },
-    { along: "z", x: bx + BLOCK_W, z: bz, length: BLOCK_D, facing: 1 },
+    { along: "z", x: bx, z: bz + MAX_DEPTH, length: side, facing: -1 },
+    { along: "z", x: bx + BLOCK_W, z: bz + MAX_DEPTH, length: side, facing: 1 },
   ];
 
   let n = 0;
