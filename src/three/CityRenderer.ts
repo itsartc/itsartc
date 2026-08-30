@@ -36,6 +36,14 @@ const MAX_FRAME_DELTA = 0.1;
 const MODEL_URL = "/assets/future-city-1/city.glb";
 const MODEL_SCALE = 45;
 
+const CENTRAL_BUILDINGS = ["Building_4_729", "Building_5_788"] as const;
+
+/** Source-model coordinates for the two cleared central blocks. */
+const CENTRAL_GRASS_PLOTS = [
+  { name: "central-grass-north", x: 0.001, z: 1.159, width: 1.75, depth: 0.99 },
+  { name: "central-grass-south", x: 0.012, z: -0.778, width: 1.67, depth: 1.67 },
+] as const;
+
 export interface CityDiagnostics {
   fps: number;
   drawCalls: number;
@@ -142,6 +150,7 @@ export class CityRenderer {
           this.model = gltf.scene;
           this.model.scale.setScalar(MODEL_SCALE);
           this.model.updateMatrixWorld(true);
+          this.replaceCentralBuildingsWithGrass(this.model);
           this.prepareModel(this.model);
           this.scene.add(this.model);
           this.setupWorld();
@@ -242,6 +251,38 @@ export class CityRenderer {
   }
 
   /**
+   * Clears the two structures nearest the geometric centre while preserving
+   * the roads around them, then covers their former lots with walkable grass.
+   * Coordinates remain in the GLB's source units and inherit MODEL_SCALE.
+   */
+  private replaceCentralBuildingsWithGrass(root: THREE.Group) {
+    // Keep the hidden nodes attached so shared GLB resources are still released
+    // with the scene. CityCollision traverses visible nodes only.
+    for (const name of CENTRAL_BUILDINGS) {
+      const building = root.getObjectByName(name);
+      if (building) building.visible = false;
+    }
+
+    const grassMaterial = new THREE.MeshStandardMaterial({
+      color: 0x5c8f50,
+      roughness: 1,
+      metalness: 0,
+    });
+
+    for (const plot of CENTRAL_GRASS_PLOTS) {
+      const grass = new THREE.Mesh(
+        new THREE.BoxGeometry(plot.width, 0.004, plot.depth),
+        grassMaterial,
+      );
+      grass.name = plot.name;
+      grass.position.set(plot.x, 0.001, plot.z);
+      root.add(grass);
+    }
+
+    root.updateMatrixWorld(true);
+  }
+
+  /**
    * Sun plus sky fill. The environment map handles reflections; these give the
    * scene a direction so façades separate into lit and shaded faces.
    */
@@ -267,7 +308,7 @@ export class CityRenderer {
     box.getSize(size);
 
     let meshes = 0;
-    this.model.traverse((o) => {
+    this.model.traverseVisible((o) => {
       if ((o as THREE.Mesh).isMesh) meshes++;
     });
     this.modelStats = {

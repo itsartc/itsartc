@@ -44,7 +44,9 @@ export class CityCollision implements WorldCollision {
   constructor(root: THREE.Object3D) {
     root.updateMatrixWorld(true);
 
-    root.traverse((o) => {
+    // Hidden model sections are intentional world edits and must not leave
+    // invisible walls behind.
+    root.traverseVisible((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh || !mesh.geometry) return;
       mesh.geometry.computeBoundsTree();
