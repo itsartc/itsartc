@@ -36,9 +36,7 @@ export class Input {
     const target = e.target as HTMLElement | null;
     if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
     if (SCROLL_KEYS.has(e.code)) e.preventDefault();
-    if (e.code in DIRECTIONS || e.code === "ShiftLeft" || e.code === "ShiftRight") {
-      this.held.add(e.code);
-    }
+    if (e.code in DIRECTIONS) this.held.add(e.code);
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
@@ -60,10 +58,6 @@ export class Input {
       }
     }
     return { x: Math.sign(x), z: Math.sign(z) };
-  }
-
-  get running(): boolean {
-    return this.held.has("ShiftLeft") || this.held.has("ShiftRight");
   }
 
   get active(): boolean {

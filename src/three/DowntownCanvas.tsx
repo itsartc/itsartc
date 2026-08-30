@@ -67,7 +67,7 @@ export default function DowntownCanvas() {
             <div className="font-semibold">Downtown</div>
           </div>
           <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-4 py-2 font-mono text-[11px] tracking-wide text-white/70 backdrop-blur">
-            ↑ ↓ ← →  move  ·  shift  run  ·  drag  look around
+            ↑ ↓ ← →  move  ·  drag  look around
           </div>
         </>
       )}

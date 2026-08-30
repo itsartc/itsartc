@@ -15,13 +15,19 @@ import { PLAYER_HEIGHT, PLAYER_RADIUS } from "./build/PlayerAvatar";
  */
 
 /**
- * Metres per second. Faster than a real walk on purpose: a person covers about
- * 1.4 m/s, but the city is over 500 m across and crossing it at a true walking
- * pace is tedious. These are game speeds tuned to the block size — one 74 m
- * block takes about twelve seconds at a walk, four at a run.
+ * Metres per second, and there is only one of them now.
+ *
+ * Far faster than a real walk on purpose: a person covers about 1.4 m/s, and
+ * crossing a 320 m city at that pace is tedious. This is what used to be the
+ * sprint speed, which turned out to be the right default — an 88 m block takes
+ * about seven seconds, and the shift key it used to need was being held
+ * permanently.
+ *
+ * The walk/run split went with it rather than being left as a modifier that
+ * changes nothing. Reintroducing a sprint means a second constant here and a
+ * branch back in `step` and `desiredVelocity`.
  */
-const WALK_SPEED = 6.4;
-const RUN_SPEED = 12;
+const MOVE_SPEED = 12;
 
 /** Seconds to reach top speed, and to stop from it. */
 const ACCEL_TIME = 0.16;
@@ -96,8 +102,7 @@ export class PlayerController {
     const desired = this.desiredVelocity(cameraYaw);
 
     const stopping = desired.lengthSq() === 0;
-    const topSpeed = this.input.running ? RUN_SPEED : WALK_SPEED;
-    const rate = topSpeed / (stopping ? DECEL_TIME : ACCEL_TIME);
+    const rate = MOVE_SPEED / (stopping ? DECEL_TIME : ACCEL_TIME);
 
     const delta = desired.clone().sub(this.velocity);
     const maxDelta = rate * dt;
@@ -125,8 +130,7 @@ export class PlayerController {
     const worldX = -v.x * cos + v.z * sin;
     const worldZ = v.x * sin + v.z * cos;
 
-    const speed = this.input.running ? RUN_SPEED : WALK_SPEED;
-    return new THREE.Vector2(worldX, worldZ).normalize().multiplyScalar(speed);
+    return new THREE.Vector2(worldX, worldZ).normalize().multiplyScalar(MOVE_SPEED);
   }
 
   /**
