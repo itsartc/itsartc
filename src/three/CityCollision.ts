@@ -10,14 +10,12 @@ import {
 /**
  * Collision and ground queries against the city mesh.
  *
- * The city is ~626k triangles across 43 meshes. Three's default raycaster tests
- * every triangle, which is far too slow to run several times per frame, so each
- * mesh gets a bounds tree (BVH) built once at load. Queries then cost
- * microseconds instead of milliseconds.
+ * The city is over a million triangles across hundreds of meshes. Three's
+ * default raycaster tests every triangle, which is far too slow to run several
+ * times per frame, so each mesh gets a bounds tree (BVH) built once at load.
  *
- * Everything here works in the model's own units. The model measures roughly
- * 248 x 196 units across with towers ~112 units tall, which reads as metres, so
- * distances in this file are metres.
+ * The renderer normalises the source asset before this class sees it, so all
+ * collision distances here are metres.
  */
 
 // Patch three's raycasting to use the BVH when one is present.
@@ -40,8 +38,8 @@ export class CityCollision implements WorldCollision {
   private readonly meshes: THREE.Mesh[] = [];
   private readonly raycaster = new THREE.Raycaster();
 
-  /** Lowest point of the whole model — ground level for the site. */
-  readonly groundY: number;
+  /** Dominant walkable street level, refined while choosing a spawn. */
+  groundY: number;
 
   constructor(root: THREE.Object3D) {
     root.updateMatrixWorld(true);
@@ -113,6 +111,8 @@ export class CityCollision implements WorldCollision {
     const minZ = bounds.min.z + inset;
     const maxZ = bounds.max.z - inset;
 
+    const samples: Array<{ x: number; z: number; ground: GroundHit }> = [];
+
     for (let i = 1; i < steps; i++) {
       for (let j = 1; j < steps; j++) {
         const x = minX + ((maxX - minX) * i) / steps;
@@ -120,39 +120,65 @@ export class CityCollision implements WorldCollision {
 
         const ground = this.groundAt(x, z);
         if (!ground) continue;
-
-        // Rooftops and balconies sit well above the site floor.
-        if (ground.y > this.groundY + 2.5) continue;
         // Steep faces are walls, not pavement.
         if (ground.normal.y < 0.7) continue;
 
-        // Must be able to stand up here.
-        const headroom = this.castDistance(
-          new THREE.Vector3(x, ground.y + 0.4, z),
-          new THREE.Vector3(0, 1, 0),
-          60,
-        );
-        if (headroom !== null && headroom < REQUIRED_HEADROOM) continue;
+        samples.push({ x, z, ground });
+      }
+    }
 
-        // Prefer somewhere with room to walk in every direction.
-        let openness = 0;
-        for (let a = 0; a < 8; a++) {
-          const angle = (a / 8) * Math.PI * 2;
-          const dir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-          const d = this.castDistance(new THREE.Vector3(x, ground.y + 1.0, z), dir, 25);
-          openness += d === null ? 25 : d;
-        }
+    if (samples.length === 0) return null;
 
-        // Openness in metres, less a penalty for wandering away from the middle
-        // of the site. The weight is tuned so a genuinely wide street near the
-        // edge can still beat a cramped alley dead centre.
-        const fromCentre = Math.hypot(x - centre.x, z - centre.z);
-        const score = openness - fromCentre * 0.8;
+    // The GLB contains a few decorative meshes below the actual roads, so its
+    // bounding-box minimum is not a usable street level. Find the lowest
+    // significant horizontal-surface cluster instead. Roads and pavements
+    // form a broad, repeated band; roofs are split across many higher bands.
+    const bucketSize = 0.75;
+    const buckets = new Map<number, { count: number; total: number }>();
+    for (const { ground } of samples) {
+      const key = Math.round(ground.y / bucketSize);
+      const bucket = buckets.get(key) ?? { count: 0, total: 0 };
+      bucket.count++;
+      bucket.total += ground.y;
+      buckets.set(key, bucket);
+    }
 
-        if (score > best.score) {
-          best.score = score;
-          best.point = new THREE.Vector3(x, ground.y, z);
-        }
+    const largestBucket = Math.max(...Array.from(buckets.values(), (bucket) => bucket.count));
+    const streetBucket = Array.from(buckets.entries())
+      .filter(([, bucket]) => bucket.count >= largestBucket * 0.3)
+      .sort(([a], [b]) => a - b)[0];
+    if (streetBucket) this.groundY = streetBucket[1].total / streetBucket[1].count;
+
+    for (const { x, z, ground } of samples) {
+      // Rooftops and raised platforms sit above the street band.
+      if (Math.abs(ground.y - this.groundY) > 1.5) continue;
+
+      // Must be able to stand up here.
+      const headroom = this.castDistance(
+        new THREE.Vector3(x, ground.y + 0.4, z),
+        new THREE.Vector3(0, 1, 0),
+        60,
+      );
+      if (headroom !== null && headroom < REQUIRED_HEADROOM) continue;
+
+      // Prefer somewhere with room to walk in every direction.
+      let openness = 0;
+      for (let a = 0; a < 8; a++) {
+        const angle = (a / 8) * Math.PI * 2;
+        const dir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+        const d = this.castDistance(new THREE.Vector3(x, ground.y + 1.0, z), dir, 25);
+        openness += d === null ? 25 : d;
+      }
+
+      // Openness in metres, less a penalty for wandering away from the middle
+      // of the site. The weight is tuned so a genuinely wide street near the
+      // edge can still beat a cramped alley dead centre.
+      const fromCentre = Math.hypot(x - centre.x, z - centre.z);
+      const score = openness - fromCentre * 0.8;
+
+      if (score > best.score) {
+        best.score = score;
+        best.point = new THREE.Vector3(x, ground.y, z);
       }
     }
 

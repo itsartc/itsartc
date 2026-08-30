@@ -4,51 +4,37 @@ A live professional world, rendered in 3D.
 
 ## Status
 
-The world is **Downtown**, a generated city served at `/`. A player walks it in
-third person.
+The world is **Future City**, an imported GLB served at `/`. A player walks it
+in third person. `/downtown` redirects to the same world.
 
 ## Controls
 
 | | |
 |---|---|
 | Arrow keys / WASD | walk, relative to the camera |
-| Shift | run |
 | Drag | look around |
 
 ## What's here
 
 ```
 app/                              layout, global styles, the world route
-src/world/schema.ts               the city as data
-src/world/downtown.ts             deterministic city generator
-src/three/DowntownRenderer.ts     scene, lighting, main loop
-src/three/DowntownCanvas.tsx      client-only mount
-src/three/SkyEnvironment.ts       procedural daylight sky
-src/three/build/                  geometry: city, road markings, avatar
-src/three/materials/              tiling material library, procedural textures
-src/three/collision/              AABB collision from city data
-public/assets/city/textures/      2.3 MB tiling material library
+src/three/CityRenderer.ts         GLB loading, scene, lighting, main loop
+src/three/CityCollision.ts        accelerated mesh collision and ground queries
+src/three/PlayerController.ts     stable character movement and stepping
+src/three/ThirdPersonCamera.ts    collision-aware chase camera
+src/three/build/PlayerAvatar.ts   original procedural avatar and animation
+public/assets/future-city-1/      the active world GLB
 ```
 
-## The world is generated, not imported
+## World asset
 
-Downtown is built on the client from a few hundred bytes of layout data. There
-is no model to download — the only asset is the texture library — so the app
-starts immediately, and every building is an editable record rather than baked
-triangles. That is what makes sponsors, entrances, interiors and an admin editor
-possible at all.
+`future_city_1.glb` is **Future_city_1** by
+[HiQ3D](https://sketchfab.com/HiQ3D), downloaded from
+[Sketchfab](https://sketchfab.com/3d-models/future-city-1-1363540d0f934472ac556a6f8cb0bdf1)
+and used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
-Roughly 366 × 318 m: 12 district buildings around a central Networking Park,
-drawn in about 29 draw calls and 29k triangles.
-
-Scale is metric throughout — a 1.8 m avatar, 6.4 m/s walk, 12 m/s run — so
-camera distance and pace need no magic numbers.
-
-An earlier version loaded an imported 14 MB GLB city at `/`. That world, its
-BVH collision and the `three-mesh-bvh` dependency were removed once Downtown
-superseded it; the model remains in git history at `10e654e` if it is ever
-needed. `/downtown`, the parallel route it was developed at, now redirects to
-`/`.
+The source model is normalised at runtime to a roughly 310 × 300 m site. Mesh
+BVHs keep collision queries practical across its 1.28 million triangles.
 
 ## Develop
 

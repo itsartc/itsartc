@@ -10,7 +10,7 @@ import type * as THREE from "three";
  */
 export interface WorldCollision {
   /** Surface height directly below a point, or null if nothing is under it. */
-  groundAt(x: number, z: number, fromY?: number): { y: number } | null;
+  groundAt(x: number, z: number, fromY?: number): { y: number; normal?: THREE.Vector3 } | null;
 
   /** Distance to the nearest obstruction along a ray, or null if clear. */
   castDistance(origin: THREE.Vector3, direction: THREE.Vector3, maxDistance: number): number | null;

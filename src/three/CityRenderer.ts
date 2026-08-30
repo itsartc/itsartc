@@ -9,7 +9,7 @@ import { ThirdPersonCamera } from "./ThirdPersonCamera";
 import { buildAvatar } from "./build/PlayerAvatar";
 
 /**
- * Renders the procedural-city-6 world and the player walking through it.
+ * Renders the Future City world and the player walking through it.
  *
  * Owns the Scene, camera, WebGL renderer and animation loop. Model loading is
  * the only asynchronous step; everything else is set up synchronously so a
@@ -21,16 +21,10 @@ import { buildAvatar } from "./build/PlayerAvatar";
  * open-world action game. Movement input is read relative to wherever it looks,
  * and it eases back behind the player as they walk.
  *
- * ## Compression
- *
- * The GLB is meshopt-compressed. The decoder is a small JS module imported from
- * three itself rather than fetched from a CDN, so the app has no external
- * runtime dependency and works offline.
- *
  * ## Units
  *
- * The model measures ~248 x 196 units across with towers ~112 tall, which reads
- * as metres. Every distance and speed in this subsystem is therefore metric.
+ * The source model was exported at miniature scale. It is normalised to a
+ * roughly 310 m-wide site so the avatar, camera and movement remain metric.
  */
 
 const CAMERA_FOV = 55;
@@ -39,11 +33,8 @@ const MAX_PIXEL_RATIO = 2;
 /** Clamp for a single frame's delta, in seconds — protects against tab resume. */
 const MAX_FRAME_DELTA = 0.1;
 
-/** Vertical bob while walking, in metres, and its rate. */
-const BOB_AMPLITUDE = 0.05;
-const BOB_RATE = 9;
-
-const MODEL_URL = "/assets/procedural-city-6/city.glb";
+const MODEL_URL = "/assets/future-city-1/city.glb";
+const MODEL_SCALE = 45;
 
 export interface CityDiagnostics {
   fps: number;
@@ -149,6 +140,8 @@ export class CityRenderer {
         if (this.disposed) return;
         try {
           this.model = gltf.scene;
+          this.model.scale.setScalar(MODEL_SCALE);
+          this.model.updateMatrixWorld(true);
           this.prepareModel(this.model);
           this.scene.add(this.model);
           this.setupWorld();
@@ -334,8 +327,7 @@ export class CityRenderer {
 
       this.avatar.position.set(
         this.player.position.x,
-        this.player.position.y +
-          (this.player.isMoving ? Math.abs(Math.sin(this.elapsed * BOB_RATE)) * BOB_AMPLITUDE : 0),
+        this.player.position.y,
         this.player.position.z,
       );
       this.avatar.rotation.y = this.player.facing;

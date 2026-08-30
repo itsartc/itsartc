@@ -50,6 +50,12 @@ const MAX_STEPS = 5;
 /** How far ahead we probe for walls, beyond the body radius. */
 const WALL_PROBE = 0.35;
 
+/** Small allowance above step height for a downward destination probe. */
+const GROUND_PROBE = 0.08;
+
+/** Anything steeper is not a floor the player can stand on. */
+const MIN_GROUND_NORMAL_Y = 0.7;
+
 export class PlayerController {
   /** Feet position in world units. */
   readonly position = new THREE.Vector3();
@@ -62,6 +68,7 @@ export class PlayerController {
 
   private velocity = new THREE.Vector2();
   private verticalVelocity = 0;
+  private motionSpeed = 0;
   private grounded = true;
   private accumulator = 0;
 
@@ -72,7 +79,7 @@ export class PlayerController {
   }
 
   get speed(): number {
-    return this.velocity.length();
+    return this.motionSpeed;
   }
 
   get isMoving(): boolean {
@@ -139,11 +146,21 @@ export class PlayerController {
    * feels navigable and one that feels sticky.
    */
   private moveHorizontally(dt: number) {
+    const startX = this.position.x;
+    const startZ = this.position.z;
     const stepX = this.velocity.x * dt;
     const stepZ = this.velocity.y * dt;
 
-    if (stepX !== 0 && this.canMove(stepX, 0)) this.position.x += stepX;
-    if (stepZ !== 0 && this.canMove(0, stepZ)) this.position.z += stepZ;
+    if (stepX !== 0) {
+      if (this.canMove(stepX, 0)) this.position.x += stepX;
+      else this.velocity.x = 0;
+    }
+    if (stepZ !== 0) {
+      if (this.canMove(0, stepZ)) this.position.z += stepZ;
+      else this.velocity.y = 0;
+    }
+
+    this.motionSpeed = Math.hypot(this.position.x - startX, this.position.z - startZ) / dt;
   }
 
   /**
@@ -163,7 +180,17 @@ export class PlayerController {
       const hit = this.collision.castDistance(origin, dir, distance);
       if (hit !== null) return false;
     }
-    return true;
+
+    // Check the destination rather than walking first and correcting later.
+    // This prevents edge jitter, roof teleports and stepping into holes where
+    // the imported model has no supporting surface.
+    const ground = this.collision.groundAt(
+      this.position.x + dx,
+      this.position.z + dz,
+      this.position.y + STEP_HEIGHT + GROUND_PROBE,
+    );
+    if (!ground || (ground.normal?.y ?? 1) < MIN_GROUND_NORMAL_Y) return false;
+    return ground.y - this.position.y <= STEP_HEIGHT + GROUND_PROBE;
   }
 
   /**
@@ -174,7 +201,7 @@ export class PlayerController {
     const ground = this.collision.groundAt(
       this.position.x,
       this.position.z,
-      this.position.y + PLAYER_HEIGHT + 2,
+      this.position.y + STEP_HEIGHT + GROUND_PROBE,
     );
 
     if (!ground) {
@@ -217,11 +244,10 @@ export class PlayerController {
       return;
     }
 
-    // Ground is above us by more than a step: we are inside geometry. Push out
-    // rather than leaving the player stuck under a mesh.
-    this.position.y = ground.y;
+    // A surface above step height is not valid ground. Do not teleport onto it;
+    // the destination probe will keep subsequent movement out of that area.
     this.verticalVelocity = 0;
-    this.grounded = true;
+    this.grounded = false;
   }
 
   /** Rotates the avatar toward travel by the shortest arc; holds facing when idle. */
