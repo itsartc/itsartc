@@ -97,7 +97,7 @@ export const techDistrict: DistrictSignature = {
     buildPortal(ctx, origin, yaw, shape);
     buildExoskeleton(ctx, origin, yaw, shape);
     buildBanner(building, ctx, origin, yaw, shape);
-    buildOculus(ctx, origin, yaw);
+    buildOculus(ctx, origin, yaw, shape.flatHalfWidth);
     buildCrown(ctx, origin, yaw, shape);
     buildHalo(ctx, origin, yaw, shape);
   },
@@ -621,9 +621,19 @@ function buildBanner(
  * all happens in the lowest third. Hanging the ring clear of the wall puts it
  * in front of the floor bands, which would otherwise slice it into quarters.
  */
-function buildOculus(ctx: SignatureContext, origin: THREE.Vector3, yaw: number) {
+function buildOculus(
+  ctx: SignatureContext,
+  origin: THREE.Vector3,
+  yaw: number,
+  flatHalfWidth: number,
+) {
   const centreY = 22.5;
   const standoff = 1.4;
+  // Sized against the façade rather than fixed: at 5.4m it read correctly on a
+  // 62m frontage and vanished on a 150m one. Capped, or it starts competing
+  // with the building instead of marking it.
+  const radius = Math.min(flatHalfWidth * 0.175, 10.5);
+  const scale = radius / 5.4;
   const parts: THREE.BufferGeometry[] = [];
 
   // A torus is authored in the x–y plane facing +z, which is exactly how a
@@ -634,16 +644,16 @@ function buildOculus(ctx: SignatureContext, origin: THREE.Vector3, yaw: number) 
     parts.push(geometry);
   };
 
-  place(new THREE.TorusGeometry(5.4, 0.32, 8, 48));
-  place(new THREE.TorusGeometry(3.1, 0.22, 8, 40));
+  place(new THREE.TorusGeometry(radius, 0.32 * scale, 8, 48));
+  place(new THREE.TorusGeometry(radius * 0.574, 0.22 * scale, 8, 40));
 
-  const hub = new THREE.CylinderGeometry(1.05, 1.05, 0.34, 20);
+  const hub = new THREE.CylinderGeometry(1.05 * scale, 1.05 * scale, 0.34, 20);
   hub.rotateX(Math.PI / 2);
   place(hub);
 
   for (let i = 0; i < 6; i++) {
-    const spoke = new THREE.BoxGeometry(0.2, 2.4, 0.2);
-    spoke.translate(0, 4.25, 0);
+    const spoke = new THREE.BoxGeometry(0.2 * scale, 2.4 * scale, 0.2);
+    spoke.translate(0, 4.25 * scale, 0);
     spoke.rotateZ((i / 6) * Math.PI * 2);
     place(spoke);
   }
@@ -664,8 +674,8 @@ function buildOculus(ctx: SignatureContext, origin: THREE.Vector3, yaw: number) 
     "tech-bracket",
     () => new THREE.MeshStandardMaterial({ color: STRUCT, roughness: 0.6, metalness: 0.3 }),
     [
-      orientedBox(0.26, 0.26, standoff, -5.4, centreY, standoff / 2, origin, yaw),
-      orientedBox(0.26, 0.26, standoff, 5.4, centreY, standoff / 2, origin, yaw),
+      orientedBox(0.26, 0.26, standoff, -radius, centreY, standoff / 2, origin, yaw),
+      orientedBox(0.26, 0.26, standoff, radius, centreY, standoff / 2, origin, yaw),
     ],
   );
 }

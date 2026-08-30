@@ -3,23 +3,34 @@ import type { Building, CityMap, District, FacadeStyle, Plaza, Prop, Road, Sidew
 /**
  * Generates Downtown as a compact, symmetrical launch city.
  *
- * Twelve mixed-use building blocks surround a two-by-two central park. The
- * park replaces the vehicle roads that would normally divide its four blocks
- * with pedestrian paths, giving the world one clear landmark and keeping every
- * district close enough to reach on foot.
+ * A three-by-three plan: eight building blocks in a ring around a central
+ * park. The middle column is as wide as the park and the middle row as deep,
+ * so the green keeps exactly the size and position it had under the earlier
+ * four-by-four plan — 162 by 138 metres at (102, 90) — and the map keeps its
+ * overall 366 by 318. Only the ring around it changed.
  *
- * Geometry and props are mirrored across both map axes. District identities
- * differ, but opposite blocks share footprint, height, material family and
- * street furniture so the plan reads as intentionally symmetrical.
+ * That makes the four cardinal blocks long: they face the park across its full
+ * width, which frames the green the way a square is framed rather than merely
+ * bounded. The four corners stay at the original block size.
+ *
+ * Everything is mirrored across both map axes. District identities differ, but
+ * opposite blocks share footprint, height, material family and street
+ * furniture, so the plan reads as intentionally symmetrical.
  */
 
-/** Metres. Four blocks produce a city approximately 366 × 318 metres. */
+/** Metres. */
 const ROAD_WIDTH = 14;
 const SIDEWALK_WIDTH = 4.5;
-const BLOCK_W = 74;
-const BLOCK_D = 62;
-const COLS = 4;
-const ROWS = 4;
+
+/**
+ * Column widths and row depths. The middle of each is the park's own span,
+ * which is what keeps the green unchanged while the ring around it shrinks
+ * from twelve blocks to eight.
+ */
+const COLUMN_W = [74, 162, 74] as const;
+const ROW_D = [62, 138, 62] as const;
+const COLS = COLUMN_W.length;
+const ROWS = ROW_D.length;
 
 const FLOOR_HEIGHT = 3.6;
 const PATH_WIDTH = 8;
@@ -29,27 +40,33 @@ const BUILDING_INSET_Z = 6;
 type DistrictSpec = readonly [id: string, name: string, accent: string];
 
 /**
- * The twelve districts, one per block.
+ * The eight districts, one per block.
  *
- * They name professional functions rather than places, so a member can find
- * the part of the world that matches what they do. Where a block's design
- * already suited its successor the two were kept together — the tower stays
- * with Tech, the exchange with Finance — so renaming cost no geometry.
+ * The four long cardinal blocks take the districts whose designs are built on
+ * repetition and so carry a 126- or 150-metre frontage; the corners take the
+ * ones composed around a centre, which is what a 62-metre façade suits.
+ *
+ * Healthcare, Operations, Legal and Product have no block in this plan. Their
+ * modules are still registered in the district signatures, so swapping any of
+ * them back in is a change to one line here.
  */
 const DISTRICTS_BY_BLOCK: Record<string, DistrictSpec> = {
   "0-0": ["founder-district", "Founder District", "#e0a53f"],
   "0-1": ["tech-district", "Tech District", "#a371f7"],
-  "0-2": ["people-district", "People District", "#3fb950"],
-  "0-3": ["consulting-district", "Consulting District", "#58a6ff"],
-  "1-0": ["product-district", "Product District", "#ce7b3c"],
-  "1-3": ["marketing-district", "Marketing District", "#db61a2"],
-  "2-0": ["operations-district", "Operations District", "#8b949e"],
-  "2-3": ["creative-district", "Creative District", "#f778ba"],
-  "3-0": ["healthcare-district", "Healthcare District", "#2dd4bf"],
-  "3-1": ["sales-district", "Sales District", "#f2cc60"],
-  "3-2": ["finance-district", "Finance District", "#ff7b72"],
-  "3-3": ["legal-district", "Legal District", "#79c0ff"],
+  "0-2": ["consulting-district", "Consulting District", "#58a6ff"],
+  "1-0": ["people-district", "People District", "#3fb950"],
+  "1-2": ["sales-district", "Sales District", "#f2cc60"],
+  "2-0": ["marketing-district", "Marketing District", "#db61a2"],
+  "2-1": ["finance-district", "Finance District", "#ff7b72"],
+  "2-2": ["creative-district", "Creative District", "#f778ba"],
 };
+
+/** Where each block starts, and the road that precedes it. */
+function offsets(sizes: readonly number[]): { road: number[]; start: number[] } {
+  const road = [0];
+  for (const size of sizes) road.push(road[road.length - 1] + ROAD_WIDTH + size);
+  return { road, start: road.slice(0, -1).map((r) => r + ROAD_WIDTH) };
+}
 
 interface BuildingTemplate {
   floors: number;
@@ -58,27 +75,21 @@ interface BuildingTemplate {
 }
 
 /**
- * Three mirrored building families. Every position in a family is reflected
- * across one or both axes, so skyline, massing and façade treatment balance.
+ * Two mirrored families: the four long cardinal blocks and the four corners.
+ * Opposite blocks are identical, so the skyline balances across both axes.
  */
 function buildingTemplate(row: number, col: number): BuildingTemplate {
-  const onOuterRow = row === 0 || row === ROWS - 1;
-  const onOuterCol = col === 0 || col === COLS - 1;
-
-  if (onOuterRow && onOuterCol) {
-    return { floors: 7, style: "concrete", color: "#aeb5b8" };
-  }
-  if (onOuterRow) {
-    return { floors: 9, style: "glass", color: "#879faf" };
-  }
-  return { floors: 6, style: "tiles", color: "#c3b9a7" };
+  const corner = (row === 0 || row === ROWS - 1) && (col === 0 || col === COLS - 1);
+  return corner
+    ? { floors: 7, style: "concrete", color: "#aeb5b8" }
+    : { floors: 9, style: "glass", color: "#879faf" };
 }
 
 export function generateDowntown(_seed = 20260829): CityMap {
-  const strideX = BLOCK_W + ROAD_WIDTH;
-  const strideZ = BLOCK_D + ROAD_WIDTH;
-  const width = COLS * strideX + ROAD_WIDTH;
-  const depth = ROWS * strideZ + ROAD_WIDTH;
+  const columns = offsets(COLUMN_W);
+  const rows = offsets(ROW_D);
+  const width = columns.road[COLS] + ROAD_WIDTH;
+  const depth = rows.road[ROWS] + ROAD_WIDTH;
 
   const roads: Road[] = [];
   const sidewalks: Sidewalk[] = [];
@@ -87,65 +98,38 @@ export function generateDowntown(_seed = 20260829): CityMap {
   const plazas: Plaza[] = [];
   const districts: District[] = [];
 
-  const parkX = strideX + ROAD_WIDTH;
-  const parkZ = strideZ + ROAD_WIDTH;
-  const parkW = BLOCK_W * 2 + ROAD_WIDTH;
-  const parkD = BLOCK_D * 2 + ROAD_WIDTH;
-  const parkMaxX = parkX + parkW;
-  const parkMaxZ = parkZ + parkD;
+  const parkX = columns.start[1];
+  const parkZ = rows.start[1];
+  const parkW = COLUMN_W[1];
+  const parkD = ROW_D[1];
   const centreX = parkX + parkW / 2;
   const centreZ = parkZ + parkD / 2;
 
   // --- Roads ---------------------------------------------------------------
-  // The middle avenue stops at the park's north and south entrances.
+  // No road crosses the park now: its four edges are grid roads, so the
+  // splitting the four-by-four plan needed is gone with it.
   for (let col = 0; col <= COLS; col++) {
-    const x = col * strideX;
-    if (col === COLS / 2) {
-      roads.push({ id: "ave-centre-north", x, z: 0, w: ROAD_WIDTH, d: parkZ, axis: "z" });
-      roads.push({
-        id: "ave-centre-south",
-        x,
-        z: parkMaxZ,
-        w: ROAD_WIDTH,
-        d: depth - parkMaxZ,
-        axis: "z",
-      });
-    } else {
-      roads.push({ id: `ave-${col}`, x, z: 0, w: ROAD_WIDTH, d: depth, axis: "z" });
-    }
+    roads.push({ id: `ave-${col}`, x: columns.road[col], z: 0, w: ROAD_WIDTH, d: depth, axis: "z" });
   }
-
-  // The middle street likewise becomes the park's east-west walking path.
   for (let row = 0; row <= ROWS; row++) {
-    const z = row * strideZ;
-    if (row === ROWS / 2) {
-      roads.push({ id: "street-centre-west", x: 0, z, w: parkX, d: ROAD_WIDTH, axis: "x" });
-      roads.push({
-        id: "street-centre-east",
-        x: parkMaxX,
-        z,
-        w: width - parkMaxX,
-        d: ROAD_WIDTH,
-        axis: "x",
-      });
-    } else {
-      roads.push({ id: `street-${row}`, x: 0, z, w: width, d: ROAD_WIDTH, axis: "x" });
-    }
+    roads.push({ id: `street-${row}`, x: 0, z: rows.road[row], w: width, d: ROAD_WIDTH, axis: "x" });
   }
 
-  // --- Outer building blocks ----------------------------------------------
+  // --- Building blocks -----------------------------------------------------
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
       if (isParkBlock(row, col)) continue;
 
-      const blockX = col * strideX + ROAD_WIDTH;
-      const blockZ = row * strideZ + ROAD_WIDTH;
+      const blockX = columns.start[col];
+      const blockZ = rows.start[row];
+      const blockW = COLUMN_W[col];
+      const blockD = ROW_D[row];
       const district = DISTRICTS_BY_BLOCK[`${row}-${col}`];
       if (!district) throw new Error(`Missing district for block ${row},${col}`);
 
-      sidewalks.push(blockSidewalk(blockX, blockZ));
-      addDistrictAndBuilding(districts, buildings, row, col, blockX, blockZ, district);
-      addSymmetricBlockProps(props, blockX, blockZ);
+      sidewalks.push(blockSidewalk(blockX, blockZ, blockW, blockD));
+      addDistrictAndBuilding(districts, buildings, row, col, blockX, blockZ, blockW, blockD, district);
+      addBlockProps(props, blockX, blockZ, blockW, blockD);
     }
   }
 
@@ -172,7 +156,7 @@ export function generateDowntown(_seed = 20260829): CityMap {
   return {
     id: "downtown",
     name: "Downtown",
-    version: 2,
+    version: 3,
     size: { w: width, d: depth },
     // Arrive just south of the fountain rather than inside its collider.
     spawn: { x: centreX, z: centreZ - 15 },
@@ -186,15 +170,15 @@ export function generateDowntown(_seed = 20260829): CityMap {
 }
 
 function isParkBlock(row: number, col: number) {
-  return row >= 1 && row <= 2 && col >= 1 && col <= 2;
+  return row === 1 && col === 1;
 }
 
-function blockSidewalk(x: number, z: number): Sidewalk {
+function blockSidewalk(x: number, z: number, w: number, d: number): Sidewalk {
   return {
     x: x - SIDEWALK_WIDTH,
     z: z - SIDEWALK_WIDTH,
-    w: BLOCK_W + SIDEWALK_WIDTH * 2,
-    d: BLOCK_D + SIDEWALK_WIDTH * 2,
+    w: w + SIDEWALK_WIDTH * 2,
+    d: d + SIDEWALK_WIDTH * 2,
   };
 }
 
@@ -205,17 +189,20 @@ function addDistrictAndBuilding(
   col: number,
   blockX: number,
   blockZ: number,
+  blockW: number,
+  blockD: number,
   district: DistrictSpec,
 ) {
   const [id, name, accent] = district;
   const template = buildingTemplate(row, col);
   const x = blockX + BUILDING_INSET_X;
   const z = blockZ + BUILDING_INSET_Z;
-  const w = BLOCK_W - BUILDING_INSET_X * 2;
-  const d = BLOCK_D - BUILDING_INSET_Z * 2;
+  const w = blockW - BUILDING_INSET_X * 2;
+  const d = blockD - BUILDING_INSET_Z * 2;
 
-  districts.push({ id, name, x: blockX + BLOCK_W / 2, z: blockZ + BLOCK_D / 2, accent });
+  districts.push({ id, name, x: blockX + blockW / 2, z: blockZ + blockD / 2, accent });
 
+  // Every entrance faces the park.
   const entrance =
     row === 0
       ? { x: x + w / 2, z: z + d }
@@ -307,26 +294,45 @@ function addParkSurfaces(
   });
 }
 
-/** Identical furniture on every outer block keeps both map axes balanced. */
-function addSymmetricBlockProps(out: Prop[], x: number, z: number) {
+/**
+ * Street furniture on a block of any size, mirrored on both axes.
+ *
+ * Blocks are no longer all the same shape — the cardinal blocks are two to
+ * three times the length of the corners — so positions are derived from each
+ * edge rather than listed. Deriving them symmetrically is what keeps opposite
+ * blocks identical without having to state each one.
+ */
+function addBlockProps(out: Prop[], x: number, z: number, w: number, d: number) {
   const edge = 2.2;
-  // Paired positions keep the middle of every façade clear for its entrance.
-  for (const offset of [13, 25, 49, 61]) {
+
+  /** Even pitch along an edge, symmetric about its middle, entrance kept clear. */
+  const along = (length: number) => {
+    const count = Math.max(2, Math.round(length / 17));
+    const step = length / (count + 1);
+    const result: number[] = [];
+    for (let i = 1; i <= count; i++) {
+      const at = step * i;
+      if (Math.abs(at - length / 2) < 9) continue;
+      result.push(at);
+    }
+    return result;
+  };
+
+  for (const offset of along(w)) {
     out.push({ type: "streetlight", x: x + offset, z: z - edge, rotation: 0 });
-    out.push({ type: "streetlight", x: x + offset, z: z + BLOCK_D + edge, rotation: Math.PI });
+    out.push({ type: "streetlight", x: x + offset, z: z + d + edge, rotation: Math.PI });
   }
-  for (const offset of [12, 22, 40, 50]) {
+  for (const offset of along(d)) {
     out.push({ type: "streetlight", x: x - edge, z: z + offset, rotation: -Math.PI / 2 });
-    out.push({ type: "streetlight", x: x + BLOCK_W + edge, z: z + offset, rotation: Math.PI / 2 });
+    out.push({ type: "streetlight", x: x + w + edge, z: z + offset, rotation: Math.PI / 2 });
   }
-  for (const offset of [-12, 12]) {
-    out.push({ type: "bench", x: x + BLOCK_W / 2 + offset, z: z - edge, rotation: 0 });
-    out.push({
-      type: "bench",
-      x: x + BLOCK_W / 2 + offset,
-      z: z + BLOCK_D + edge,
-      rotation: Math.PI,
-    });
+
+  // Benches flanking the middle of each edge, where the entrance is.
+  for (const offset of [-13, 13]) {
+    out.push({ type: "bench", x: x + w / 2 + offset, z: z - edge, rotation: 0 });
+    out.push({ type: "bench", x: x + w / 2 + offset, z: z + d + edge, rotation: Math.PI });
+    out.push({ type: "bench", x: x - edge, z: z + d / 2 + offset, rotation: -Math.PI / 2 });
+    out.push({ type: "bench", x: x + w + edge, z: z + d / 2 + offset, rotation: Math.PI / 2 });
   }
 }
 

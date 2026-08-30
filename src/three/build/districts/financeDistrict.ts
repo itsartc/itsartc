@@ -147,17 +147,23 @@ interface Point {
  * scene casts shadows, so relief has to come from surfaces genuinely facing
  * different directions and catching the sun differently.
  */
+/** Bays are derived so the fold keeps this pitch whatever the run's length. */
+const FOLD_PITCH = 6.4;
+
 function foldedRun(
   from: Point,
   to: Point,
   outward: Point,
-  bays: number,
   height: number,
   midY: number,
   origin: THREE.Vector3,
   yaw: number,
 ): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
+  // A fixed bay count made a 21m fold on the long cardinal blocks and a 6m one
+  // on the corners — the same building reading as two different scales. Pitch
+  // is the thing that should stay constant.
+  const bays = Math.max(2, Math.round(Math.hypot(to.x - from.x, to.z - from.z) / FOLD_PITCH));
   const along = { x: (to.x - from.x) / bays, z: (to.z - from.z) / bays };
 
   const panel = (a: Point, b: Point) => {
@@ -212,14 +218,14 @@ function buildFoldedSkin(
   const parts: THREE.BufferGeometry[] = [];
 
   // Entrance face, either side of the recess and again above it.
+  const front = { x: 0, z: 1 };
   parts.push(
-    ...foldedRun({ x: -inset, z: SKIN_OFFSET }, { x: -RECESS_HALF_WIDTH, z: SKIN_OFFSET }, { x: 0, z: 1 }, 3, full, fullMid, origin, yaw),
-    ...foldedRun({ x: RECESS_HALF_WIDTH, z: SKIN_OFFSET }, { x: inset, z: SKIN_OFFSET }, { x: 0, z: 1 }, 3, full, fullMid, origin, yaw),
+    ...foldedRun({ x: -inset, z: SKIN_OFFSET }, { x: -RECESS_HALF_WIDTH, z: SKIN_OFFSET }, front, full, fullMid, origin, yaw),
+    ...foldedRun({ x: RECESS_HALF_WIDTH, z: SKIN_OFFSET }, { x: inset, z: SKIN_OFFSET }, front, full, fullMid, origin, yaw),
     ...foldedRun(
       { x: -RECESS_HALF_WIDTH, z: SKIN_OFFSET },
       { x: RECESS_HALF_WIDTH, z: SKIN_OFFSET },
-      { x: 0, z: 1 },
-      4,
+      front,
       top - 0.9 - RECESS_HEIGHT,
       (RECESS_HEIGHT + top - 0.9) / 2,
       origin,
@@ -233,7 +239,6 @@ function buildFoldedSkin(
       { x: -inset, z: -depth - SKIN_OFFSET },
       { x: inset, z: -depth - SKIN_OFFSET },
       { x: 0, z: -1 },
-      9,
       full,
       fullMid,
       origin,
@@ -248,7 +253,6 @@ function buildFoldedSkin(
         { x: side * (halfWidth + SKIN_OFFSET), z: -zInset },
         { x: side * (halfWidth + SKIN_OFFSET), z: -depth + zInset },
         { x: side, z: 0 },
-        8,
         full,
         fullMid,
         origin,
@@ -335,7 +339,14 @@ function buildForecourt(
   const columns: THREE.BufferGeometry[] = [];
   const canopyTop = RECESS_HEIGHT + 1.5;
   const columnTop = canopyTop - 0.2;
-  for (const x of [-27, -16.2, -5.4, 5.4, 16.2, 27]) {
+  // Spaced at a fixed pitch rather than listed. Six hardcoded positions
+  // clustered in the middle of a 153m canopy the moment this district moved to
+  // a long block, leaving most of the roof standing on nothing.
+  const pitch = 10.8;
+  const bays = Math.max(3, Math.round((halfWidth - 3) / pitch));
+  for (let i = -bays; i <= bays; i++) {
+    if (i === 0) continue;
+    const x = (i - Math.sign(i) * 0.5) * ((halfWidth - 3) / bays);
     columns.push(
       orientedBox(
         1.7,
@@ -491,10 +502,10 @@ function buildCornice(
   const crownHeight = 2.4;
   const crownMid = top + 0.55 + crownHeight / 2;
   parts.push(
-    ...foldedRun({ x: -band, z: 1.7 }, { x: band, z: 1.7 }, { x: 0, z: 1 }, 9, crownHeight, crownMid, origin, yaw),
-    ...foldedRun({ x: -band, z: -depth - 1.7 }, { x: band, z: -depth - 1.7 }, { x: 0, z: -1 }, 9, crownHeight, crownMid, origin, yaw),
-    ...foldedRun({ x: band - 1.4, z: -1.7 }, { x: band - 1.4, z: -depth + 1.7 }, { x: 1, z: 0 }, 7, crownHeight, crownMid, origin, yaw),
-    ...foldedRun({ x: -band + 1.4, z: -1.7 }, { x: -band + 1.4, z: -depth + 1.7 }, { x: -1, z: 0 }, 7, crownHeight, crownMid, origin, yaw),
+    ...foldedRun({ x: -band, z: 1.7 }, { x: band, z: 1.7 }, { x: 0, z: 1 }, crownHeight, crownMid, origin, yaw),
+    ...foldedRun({ x: -band, z: -depth - 1.7 }, { x: band, z: -depth - 1.7 }, { x: 0, z: -1 }, crownHeight, crownMid, origin, yaw),
+    ...foldedRun({ x: band - 1.4, z: -1.7 }, { x: band - 1.4, z: -depth + 1.7 }, { x: 1, z: 0 }, crownHeight, crownMid, origin, yaw),
+    ...foldedRun({ x: -band + 1.4, z: -1.7 }, { x: -band + 1.4, z: -depth + 1.7 }, { x: -1, z: 0 }, crownHeight, crownMid, origin, yaw),
   );
 
   ctx.add(
