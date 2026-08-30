@@ -46,16 +46,6 @@ export interface SignatureContext {
   batcher: GeometryBatcher;
 }
 
-/** Placement of the name plaque above a building's door, in its own frame. */
-export interface EntranceSign {
-  width: number;
-  height: number;
-  /** Height above the ground plane, to the centre of the plaque. */
-  y: number;
-  /** How far the plaque stands out from the entrance façade. */
-  depth: number;
-}
-
 /**
  * A district's architectural identity.
  *
@@ -65,11 +55,4 @@ export interface EntranceSign {
  */
 export interface DistrictSignature {
   build(building: Building, ctx: SignatureContext): void;
-
-  /**
-   * Overrides where the shared entrance builder puts the name plaque, for a
-   * façade whose composition the default placement would fight. Districts that
-   * do not care omit it and get the default.
-   */
-  entranceSign?(building: Building): EntranceSign;
 }

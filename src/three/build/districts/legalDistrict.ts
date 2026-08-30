@@ -22,9 +22,6 @@ const COLUMN = 0x5d666d;
 const ACCENT = "#79c0ff";
 
 export const legalDistrict: DistrictSignature = {
-  entranceSign() {
-    return { width: 13, height: 1.9, y: 5.3, depth: 0.5 };
-  },
 
   build(_building: Building, ctx: SignatureContext) {
     const f = frame(_building);
@@ -83,11 +80,11 @@ export const legalDistrict: DistrictSignature = {
       facePanels(f, { from: base + 0.3, to: massBase - 1.4, offset: 0.2, thickness: 0.22, inset: 1, openBay: { halfWidth: 6.5, height: massBase - 1.4 } }),
     );
 
-    ctx.add("legal-shade", () => shadowed(0x232a30), entranceReveal(f, { halfWidth: 6.5, height: liftHeight * 0.8 }));
+    ctx.add("legal-shade", () => shadowed(0x232a30), entranceReveal(f, { halfWidth: 6.5, height: massBase - 0.16 }));
     ctx.add(
       "legal-light",
       () => glow(ACCENT, 1.15),
-      band(f, { y: massBase - 1.5, height: 0.2, offset: 1.5, thickness: 0.3 }),
+      band(f, { y: massBase - 0.8, height: 0.2, offset: 1.5, thickness: 0.3 }),
       { bloom: true },
     );
   },

@@ -5,7 +5,7 @@ import { CityMaterials, type MaterialName } from "../materials/CityMaterials";
 import { buildRoadMarkings } from "./RoadMarkings";
 import { GeometryBatcher } from "./GeometryBatcher";
 import { DISTRICT_SIGNATURES } from "./districts";
-import type { EntranceSign, SignatureContext } from "./districts/types";
+import type { SignatureContext } from "./districts/types";
 import {
   addGeometryCollider,
   boxPart,
@@ -43,7 +43,22 @@ const FACADE_MATERIAL: Record<Building["style"], MaterialName> = {
 const WALL_THICKNESS = 0.72;
 const DOOR_WIDTH = 4.8;
 const DOOR_HEIGHT = 3.35;
-const SIGN_HEIGHT = 1.65;
+/**
+ * The name plaque, identical on every building in the city.
+ *
+ * One label per building, at one height, is what lets a member read the city
+ * by scanning across it rather than hunting each façade for wherever that
+ * district decided to put its name. Districts used to be able to override
+ * this, and every one of them did — twelve different heights, and four
+ * buildings carrying their name twice. The override is gone rather than
+ * merely unused, so the consistency cannot drift back out.
+ *
+ * Every district's entrance opening is at least SIGN_BAY_MIN tall to clear it.
+ */
+const SIGN_WIDTH = 12;
+const SIGN_HEIGHT = 1.8;
+const SIGN_Y = 5.4;
+const SIGN_DEPTH = 0.62;
 
 
 export interface CityBuild {
@@ -400,18 +415,8 @@ function buildEntrance(
   transformFromEntrance(glow, origin, yaw);
   glowParts.push(glow);
 
-  // A district whose façade composition the default placement would fight can
-  // say where its plaque goes. That decision belongs in the district's own
-  // module: this builder runs for every building and should not know any of
-  // their names.
-  const sign: EntranceSign = DISTRICT_SIGNATURES[building.districtId]?.entranceSign?.(building) ?? {
-    width: THREE.MathUtils.clamp(building.name.length * 0.72 + 3.2, 9, 17),
-    height: SIGN_HEIGHT,
-    y: KERB_HEIGHT + DOOR_HEIGHT + 1.82,
-    depth: 0.18,
-  };
   plaqueParts.push(
-    orientedBox(sign.width, sign.height, 0.22, 0, sign.y, sign.depth, origin, yaw),
+    orientedBox(SIGN_WIDTH, SIGN_HEIGHT, 0.22, 0, SIGN_Y, SIGN_DEPTH, origin, yaw),
   );
 
   const canvas = document.createElement("canvas");
@@ -447,9 +452,9 @@ function buildEntrance(
   });
   ownedMaterials.push(labelMaterial);
 
-  const labelGeometry = new THREE.PlaneGeometry(sign.width - 0.55, sign.height - 0.3);
+  const labelGeometry = new THREE.PlaneGeometry(SIGN_WIDTH - 0.55, SIGN_HEIGHT - 0.3);
   // Just clear of the plaque's own front face, which is half its 0.22 thickness.
-  labelGeometry.translate(0, sign.y, sign.depth + 0.125);
+  labelGeometry.translate(0, SIGN_Y, SIGN_DEPTH + 0.125);
   transformFromEntrance(labelGeometry, origin, yaw);
   geometries.push(labelGeometry);
 

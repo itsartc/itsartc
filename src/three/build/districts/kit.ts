@@ -159,7 +159,13 @@ export function facePanels(
   return parts;
 }
 
-/** Evenly spaced vertical fins, optionally turned to a fixed rake. */
+/**
+ * Evenly spaced vertical fins, optionally turned to a fixed rake.
+ *
+ * `openBay` lifts the fins that fall across the entrance so they start above
+ * it rather than running down over the doors and the name plaque — which is
+ * exactly what the first louvred façade did.
+ */
 export function fins(
   f: Frame,
   options: {
@@ -171,25 +177,26 @@ export function fins(
     offset: number;
     rake?: number;
     inset?: number;
+    openBay?: { halfWidth: number; height: number };
     faces?: Faces;
   },
 ): THREE.BufferGeometry[] {
-  const { from, to, spacing, width, projection, offset, rake = 0, inset = 2 } = options;
+  const { from, to, spacing, width, projection, offset, rake = 0, inset = 2, openBay } = options;
   const faces = resolve(options.faces);
   const { origin, yaw, halfWidth, depth } = f;
-  const height = to - from;
-  const midY = (from + to) / 2;
   const parts: THREE.BufferGeometry[] = [];
 
-  const place = (x: number, z: number, turn: number) => {
+  const place = (x: number, z: number, turn: number, top = to, bottom = from) => {
+    if (top - bottom <= 0) return;
     parts.push(
-      orientedYawBox(width, height, projection, x, midY, z, turn + rake, origin, yaw),
+      orientedYawBox(width, top - bottom, projection, x, (top + bottom) / 2, z, turn + rake, origin, yaw),
     );
   };
 
   if (faces.front || faces.back) {
     for (let x = -halfWidth + inset; x <= halfWidth - inset; x += spacing) {
-      if (faces.front) place(x, offset + projection / 2, 0);
+      const lifted = openBay && Math.abs(x) < openBay.halfWidth ? Math.max(from, openBay.height) : from;
+      if (faces.front) place(x, offset + projection / 2, 0, to, lifted);
       if (faces.back) place(x, -depth - offset - projection / 2, Math.PI);
     }
   }

@@ -23,9 +23,6 @@ const LANTERN = "#d8f3ee";
 const MINT = "#5ecfb4";
 
 export const healthcareDistrict: DistrictSignature = {
-  entranceSign() {
-    return { width: 14, height: 2, y: 9.4, depth: 0.62 };
-  },
 
   build(_building: Building, ctx: SignatureContext) {
     const f = frame(_building);

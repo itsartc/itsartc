@@ -23,9 +23,6 @@ const BAY_HALF_WIDTH = 9;
 const BAY_HEIGHT = 8.6;
 
 export const founderDistrict: DistrictSignature = {
-  entranceSign() {
-    return { width: 12, height: 1.9, y: 10.4, depth: 0.72 };
-  },
 
   build(_building: Building, ctx: SignatureContext) {
     const f = frame(_building);

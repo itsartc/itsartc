@@ -26,9 +26,6 @@ const WARM = "#c9f2d4";
 const ATRIUM_HALF_WIDTH = 10.5;
 
 export const peopleDistrict: DistrictSignature = {
-  entranceSign() {
-    return { width: 15, height: 2.1, y: 15.6, depth: 0.62 };
-  },
 
   build(_building: Building, ctx: SignatureContext) {
     const f = frame(_building);

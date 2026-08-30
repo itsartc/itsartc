@@ -42,9 +42,6 @@ const FRONT_MODULES: Module[] = [
 ];
 
 export const productDistrict: DistrictSignature = {
-  entranceSign() {
-    return { width: 12, height: 1.8, y: 8.2, depth: 0.9 };
-  },
 
   build(_building: Building, ctx: SignatureContext) {
     const f = frame(_building);

@@ -34,16 +34,13 @@ const BOARDS: Board[] = [
 ];
 
 export const marketingDistrict: DistrictSignature = {
-  entranceSign() {
-    return { width: 11, height: 1.7, y: 5.1, depth: 0.5 };
-  },
 
   build(building: Building, ctx: SignatureContext) {
     const f = frame(building);
     if (!f) return;
     const { origin, yaw, halfWidth, depth, base, top } = f;
     const bay = 7;
-    const bayTop = base + f.floorHeight * 1.6;
+    const bayTop = base + f.floorHeight * 2;
 
     ctx.add(
       "marketing-frame",
@@ -82,7 +79,9 @@ export const marketingDistrict: DistrictSignature = {
     ctx.add("marketing-cool", () => glow(COOL, 0.85), cool, { bloom: true });
 
     // One board carries actual copy, so the wall is not purely abstract.
-    const headline = makeMarquee(building.name.replace(" District", ""), "now booking", "#ff4d9d");
+    // Unsold, the board advertises itself. That is the honest state of this
+    // building: strip the boards off and there is a shed underneath.
+    const headline = makeMarquee(building.sponsor ?? "This Space", "now booking", "#ff4d9d");
     ctx.ownTexture(headline);
     ctx.add(
       "marketing-headline",

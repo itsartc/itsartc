@@ -8,7 +8,7 @@ import {
   orientedYawBox,
 } from "../geometry";
 import { makeMarquee } from "../../materials/signTextures";
-import type { DistrictSignature, EntranceSign, SignatureContext } from "./types";
+import type { DistrictSignature, SignatureContext } from "./types";
 
 /**
  * The Finance District, built as an exchange.
@@ -82,17 +82,6 @@ const STONE = 0xc3b9ab;
 const ACCENT = "#ff7b72";
 
 export const financeDistrict: DistrictSignature = {
-  /**
-   * Small, and low over the doors.
-   *
-   * The marquee is this building's name board. A second one at the same scale
-   * a few metres beneath it read as a mistake rather than as signage, so what
-   * stays in the recess is door-scale: the thing you read on the threshold,
-   * not from across the park.
-   */
-  entranceSign(): EntranceSign {
-    return { width: 10, height: 1.7, y: KERB_HEIGHT + 5.2, depth: 0.5 };
-  },
 
   build(building: Building, ctx: SignatureContext) {
     if (!building.entrance) return;
@@ -413,7 +402,7 @@ function buildMarquee(
   origin: THREE.Vector3,
   yaw: number,
 ) {
-  const marquee = makeMarquee(building.name, "markets open", ACCENT);
+  const marquee = makeMarquee(building.sponsor ?? "Trading Floor", "markets open", ACCENT);
   ctx.ownTexture(marquee);
   const height = MARQUEE_TOP - MARQUEE_BOTTOM;
 

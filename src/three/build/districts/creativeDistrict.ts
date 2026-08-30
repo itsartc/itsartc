@@ -25,16 +25,13 @@ const ROOF_GLASS = 0x8fb6c4;
 const MURAL = [0xef5f8c, 0xf5b83d, 0x3fb6a8, 0x7c5cd6, 0xf07a3f] as const;
 
 export const creativeDistrict: DistrictSignature = {
-  entranceSign() {
-    return { width: 12, height: 1.8, y: 7.9, depth: 0.5 };
-  },
 
   build(_building: Building, ctx: SignatureContext) {
     const f = frame(_building);
     if (!f) return;
     const { origin, yaw, halfWidth, depth, base, top } = f;
     const bay = 7.5;
-    const bayTop = base + f.floorHeight * 1.8;
+    const bayTop = base + f.floorHeight * 2;
     const brickTop = base + f.floorHeight * 3;
 
     ctx.add(

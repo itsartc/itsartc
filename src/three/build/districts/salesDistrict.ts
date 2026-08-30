@@ -24,9 +24,6 @@ const VITRINE = "#fff0c2";
 const ACCENT = "#f2cc60";
 
 export const salesDistrict: DistrictSignature = {
-  entranceSign() {
-    return { width: 14, height: 2, y: 10.2, depth: 0.6 };
-  },
 
   build(building: Building, ctx: SignatureContext) {
     const f = frame(building);
@@ -57,7 +54,7 @@ export const salesDistrict: DistrictSignature = {
     buildDisplayBays(ctx, f, bay, showroomTop);
 
     // The board, high and central.
-    const board = makeMarquee(building.name.replace(" District", ""), "always on", ACCENT);
+    const board = makeMarquee(building.sponsor ?? "Showroom", "always on", ACCENT);
     ctx.ownTexture(board);
     ctx.add(
       "sales-board",

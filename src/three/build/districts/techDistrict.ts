@@ -4,7 +4,7 @@ import { KERB_HEIGHT } from "@/world/schema";
 import { entranceSide, entranceYaw, orientedBox, orientedTiltedBox, orientedYawBox, transformFromEntrance } from "../geometry";
 import { makeVerticalBanner } from "../../materials/signTextures";
 import { BLOOM_LAYER } from "../../postprocessing/SelectiveBloom";
-import type { DistrictSignature, EntranceSign, SignatureContext } from "./types";
+import type { DistrictSignature, SignatureContext } from "./types";
 
 /**
  * The Tech District.
@@ -71,19 +71,6 @@ const ACCENT = "#a371f7";
 const CYAN = "#22d3ee";
 
 export const techDistrict: DistrictSignature = {
-  /**
-   * The default plaque sits just above the door, which here would put it in the
-   * middle of the portal's glazing. It belongs on the pier line instead, two
-   * storeys up, sized to be read from across the park.
-   */
-  entranceSign(building: Building): EntranceSign {
-    return {
-      width: 18,
-      height: 2.4,
-      y: KERB_HEIGHT + (building.height / building.floors) * 2 + 1.5,
-      depth: 0.62,
-    };
-  },
 
   build(building: Building, ctx: SignatureContext) {
     if (!building.entrance) return;
@@ -584,7 +571,10 @@ function buildBanner(
   yaw: number,
   shape: Shape,
 ) {
-  const banner = makeVerticalBanner(building.name, "#7c3aed", CYAN);
+  // The sponsor's name, not the district's — the plaque over the doors carries
+  // that, and one building saying its own name twice reads as a mistake. Unsold
+  // (which is all of them, for now) the panel is emblem and gradient alone.
+  const banner = makeVerticalBanner(building.sponsor ?? "", "#7c3aed", CYAN);
   ctx.ownTexture(banner);
 
   const top = TRUSS_TOP - 0.4;

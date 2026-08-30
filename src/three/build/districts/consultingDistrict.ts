@@ -20,16 +20,13 @@ const GLASS = 0x3d4a52;
 const ACCENT = "#58a6ff";
 
 export const consultingDistrict: DistrictSignature = {
-  entranceSign() {
-    return { width: 13, height: 1.9, y: 7.4, depth: 0.55 };
-  },
 
   build(_building: Building, ctx: SignatureContext) {
     const f = frame(_building);
     if (!f) return;
     const { origin, yaw, halfWidth, depth, base, top } = f;
     const bay = 8.5;
-    const bayTop = base + f.floorHeight * 1.7;
+    const bayTop = base + f.floorHeight * 2;
 
     ctx.add(
       "consulting-glass",
@@ -42,7 +39,17 @@ export const consultingDistrict: DistrictSignature = {
     ctx.add(
       "consulting-fin",
       () => new THREE.MeshStandardMaterial({ color: FIN, roughness: 0.66, metalness: 0.18 }),
-      fins(f, { from: base + 0.4, to: top - 1.6, spacing: 2.15, width: 0.34, projection: 1.5, offset: 0.3, rake: 0.56, inset: 2.4 }),
+      fins(f, {
+        from: base + 0.4,
+        to: top - 1.6,
+        spacing: 2.15,
+        width: 0.34,
+        projection: 1.5,
+        offset: 0.3,
+        rake: 0.56,
+        inset: 2.4,
+        openBay: { halfWidth: bay + 1, height: bayTop },
+      }),
     );
 
     // A crisp frame around the louvres, and a thin cornice.

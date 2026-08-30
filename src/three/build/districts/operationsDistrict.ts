@@ -19,16 +19,13 @@ const STAIR = 0xf0b429;
 const PIPES = ["#3b82f6", "#22c55e", "#ef4444", "#f0b429"] as const;
 
 export const operationsDistrict: DistrictSignature = {
-  entranceSign() {
-    return { width: 12, height: 1.8, y: 7.6, depth: 0.5 };
-  },
 
   build(_building: Building, ctx: SignatureContext) {
     const f = frame(_building);
     if (!f) return;
     const { origin, yaw, halfWidth, depth, base, top } = f;
     const bay = 7;
-    const bayTop = base + f.floorHeight * 1.7;
+    const bayTop = base + f.floorHeight * 2;
 
     ctx.add(
       "operations-shell",
