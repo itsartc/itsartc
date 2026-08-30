@@ -5,6 +5,8 @@
 
 # next.js
 /.next/
+# a build run from a subdirectory drops one of these there too
+.next/
 /out/
 
 # production
