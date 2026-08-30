@@ -4,6 +4,7 @@ import { KERB_HEIGHT } from "@/world/schema";
 import { entranceSide, entranceYaw, orientedBox, orientedTiltedBox, orientedYawBox, transformFromEntrance } from "../geometry";
 import { makeVerticalBanner } from "../../materials/signTextures";
 import { BLOOM_LAYER } from "../../postprocessing/SelectiveBloom";
+import { glazing } from "./kit";
 import type { DistrictSignature, SignatureContext } from "./types";
 
 /**
@@ -227,8 +228,7 @@ function buildCornerDrums(
   );
 }
 
-const glassMaterial = () =>
-  new THREE.MeshStandardMaterial({ color: GLASS, roughness: 0.13, metalness: 0.62 });
+const glassMaterial = () => glazing(GLASS);
 
 const frameMaterial = () =>
   new THREE.MeshStandardMaterial({ color: FRAME, roughness: 0.72, metalness: 0.06 });

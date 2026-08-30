@@ -65,10 +65,10 @@ export const founderDistrict: DistrictSignature = {
       const y = base + floor * f.floorHeight + 0.9;
       steel.push(orientedBox(5.4, 2.6, 1.5, x, y, 0.85, origin, yaw));
     }
-    ctx.add("founder-steel", () => new THREE.MeshStandardMaterial({ color: STEEL, roughness: 0.55, metalness: 0.62 }), steel);
+    ctx.add("founder-steel", () => new THREE.MeshStandardMaterial({ color: STEEL, roughness: 0.66, metalness: 0.38 }), steel);
 
     const brow = canopy(f, { y: BAY_HEIGHT + 1.2, height: 0.7, projection: 3.4, width: BAY_HALF_WIDTH * 2 + 5 });
-    ctx.add("founder-steel", () => new THREE.MeshStandardMaterial({ color: STEEL, roughness: 0.55, metalness: 0.62 }), brow.structure);
+    ctx.add("founder-steel", () => new THREE.MeshStandardMaterial({ color: STEEL, roughness: 0.66, metalness: 0.38 }), brow.structure);
     ctx.add("founder-shade", () => shadowed(0x241a16), [brow.soffit, ...entranceReveal(f, { halfWidth: BAY_HALF_WIDTH, height: BAY_HEIGHT })]);
 
     ctx.add("founder-stone", () => new THREE.MeshStandardMaterial({ color: 0xb9ad9d, roughness: 0.88 }), plinth(f, ctx, { depth: 3.4, rise: 0.3 }));

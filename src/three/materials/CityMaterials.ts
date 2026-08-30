@@ -143,7 +143,9 @@ export class CityMaterials {
     const material = new THREE.MeshStandardMaterial({
       color: tint ? new THREE.Color(tint) : 0xffffff,
       roughness: 0.9,
-      metalness: name === "facadeGlass" ? 0.35 : 0.02,
+      // Glass reads as glass through its texture and its tint; the metalness
+      // this carried was only ever buying a mirror finish.
+      metalness: name === "facadeGlass" ? 0.12 : 0.02,
     });
 
     const apply = (tex: THREE.Texture) => {

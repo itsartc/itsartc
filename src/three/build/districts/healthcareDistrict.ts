@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Building } from "@/world/schema";
 import { orientedBox } from "../geometry";
-import { band, canopy, entranceReveal, facePanels, frame, glow, plinth, shadowed } from "./kit";
+import { band, canopy, entranceReveal, facePanels, frame, glow, plinth, shadowed, glazing } from "./kit";
 import type { DistrictSignature, SignatureContext } from "./types";
 
 /**
@@ -59,7 +59,7 @@ export const healthcareDistrict: DistrictSignature = {
     ctx.add("healthcare-reveal", () => new THREE.MeshStandardMaterial({ color: REVEAL, roughness: 0.88 }), reveals);
     ctx.add(
       "healthcare-glass",
-      () => new THREE.MeshStandardMaterial({ color: GLASS, roughness: 0.14, metalness: 0.28, transparent: true, opacity: 0.85 }),
+      () => glazing(GLASS, { opacity: 0.85 }),
       panes,
     );
 

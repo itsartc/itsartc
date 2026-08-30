@@ -263,7 +263,7 @@ function buildFoldedSkin(
 
   ctx.add(
     "finance-skin",
-    () => new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.48, metalness: 0.5 }),
+    () => new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.62, metalness: 0.26 }),
     parts,
   );
 }

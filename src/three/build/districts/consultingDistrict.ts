@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Building } from "@/world/schema";
 import { orientedBox } from "../geometry";
-import { band, canopy, entranceReveal, facePanels, fins, frame, glow, shadowed } from "./kit";
+import { band, canopy, entranceReveal, facePanels, fins, frame, glow, shadowed, glazing } from "./kit";
 import type { DistrictSignature, SignatureContext } from "./types";
 
 /**
@@ -30,7 +30,7 @@ export const consultingDistrict: DistrictSignature = {
 
     ctx.add(
       "consulting-glass",
-      () => new THREE.MeshStandardMaterial({ color: GLASS, roughness: 0.18, metalness: 0.5 }),
+      () => glazing(GLASS),
       facePanels(f, { from: base, to: top, offset: 0.14, thickness: 0.24, inset: 1.6, openBay: { halfWidth: bay, height: bayTop } }),
     );
 

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Building } from "@/world/schema";
 import { orientedBox, orientedTiltedBox } from "../geometry";
-import { band, entranceReveal, facePanels, frame, glow, shadowed , type Frame } from "./kit";
+import { band, entranceReveal, facePanels, frame, glow, shadowed , type Frame, glazing } from "./kit";
 import type { DistrictSignature, SignatureContext } from "./types";
 
 /**
@@ -52,7 +52,7 @@ export const creativeDistrict: DistrictSignature = {
     ctx.add("creative-frame", () => new THREE.MeshStandardMaterial({ color: FRAME_COLOUR, roughness: 0.7, metalness: 0.2 }), frames);
     ctx.add(
       "creative-studio-glass",
-      () => new THREE.MeshStandardMaterial({ color: ROOF_GLASS, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.8 }),
+      () => glazing(ROOF_GLASS, { opacity: 0.8 }),
       facePanels(f, { from: brickTop + 0.5, to: top - 1, offset: 0.22, thickness: 0.24, inset: 2 }),
     );
 
@@ -100,7 +100,7 @@ function buildSawtooth(ctx: SignatureContext, f: Frame) {
   ctx.add("creative-frame", () => new THREE.MeshStandardMaterial({ color: FRAME_COLOUR, roughness: 0.7, metalness: 0.2 }), solids);
   ctx.add(
     "creative-studio-glass",
-    () => new THREE.MeshStandardMaterial({ color: ROOF_GLASS, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.8 }),
+    () => glazing(ROOF_GLASS, { opacity: 0.8 }),
     lights,
   );
 }

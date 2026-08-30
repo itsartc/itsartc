@@ -23,6 +23,9 @@ import { SkyEnvironment, SKY_HORIZON_COLOR } from "./SkyEnvironment";
 
 const CAMERA_FOV = 55;
 
+/** How much of the studio environment the city reflects. */
+const ENVIRONMENT_INTENSITY = 0.45;
+
 const MAX_PIXEL_RATIO = 2;
 const MAX_FRAME_DELTA = 0.1;
 const BOB_AMPLITUDE = 0.05;
@@ -88,7 +91,7 @@ export class DowntownRenderer {
     this.renderer.setSize(width, height);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.9;
+    this.renderer.toneMappingExposure = 1.06;
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
@@ -100,6 +103,17 @@ export class DowntownRenderer {
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    // RoomEnvironment is a bright studio, and every physically-based surface
+    // in the city reflects it. At full strength that reflection is most of
+    // what reads as shininess, so it is cut here in one place rather than
+    // fought material by material.
+    //
+    // It was also doing most of the ambient fill — far more than the
+    // hemisphere light, which barely moved the scene when raised to
+    // compensate. Exposure makes that up instead: it lifts diffuse and
+    // specular alike, but the specular has already been more than halved
+    // here, so the net is a brighter city with duller surfaces.
+    this.scene.environmentIntensity = ENVIRONMENT_INTENSITY;
 
     // Tight near:far, so decal-scale depth differences stay resolvable.
     this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, width / height, 0.5, 900);
@@ -138,7 +152,7 @@ export class DowntownRenderer {
   }
 
   private addLighting(sunPosition: THREE.Vector3) {
-    const hemi = new THREE.HemisphereLight(0xdff0ff, 0x60605a, 0.78);
+    const hemi = new THREE.HemisphereLight(0xdff0ff, 0x60605a, 0.95);
     this.scene.add(hemi);
 
     const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);

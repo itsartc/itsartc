@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Building } from "@/world/schema";
 import { orientedBox } from "../geometry";
-import { band, canopy, entranceReveal, facePanels, frame, glow, plinth, shadowed , type Frame } from "./kit";
+import { band, canopy, entranceReveal, facePanels, frame, glazing, glow, plinth, shadowed, type Frame } from "./kit";
 import type { DistrictSignature, SignatureContext } from "./types";
 
 /**
@@ -47,17 +47,17 @@ export const peopleDistrict: DistrictSignature = {
 
     // Pale glazing in a continuous ribbon under each floor line — this
     // building has nothing to hide behind.
-    const glazing: THREE.BufferGeometry[] = [];
+    const panes: THREE.BufferGeometry[] = [];
     for (let floor = 1; floor < f.floors; floor++) {
-      glazing.push(...band(f, { y: base + floor * floorHeight - 1.1, height: 1.9, offset: 0.36, thickness: 0.3, inset: 2.6 }));
+      panes.push(...band(f, { y: base + floor * floorHeight - 1.1, height: 1.9, offset: 0.36, thickness: 0.3, inset: 2.6 }));
     }
-    glazing.push(
+    panes.push(
       orientedBox(ATRIUM_HALF_WIDTH * 2, atriumTop - base - 4.4, 0.3, 0, (base + 4.4 + atriumTop) / 2, 0.36, origin, yaw),
     );
     ctx.add(
       "people-glass",
-      () => new THREE.MeshStandardMaterial({ color: GLASS, roughness: 0.16, metalness: 0.28, transparent: true, opacity: 0.82 }),
-      glazing,
+      () => glazing(GLASS, { opacity: 0.82 }),
+      panes,
     );
 
     buildTerraces(ctx, f);

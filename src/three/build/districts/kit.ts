@@ -351,6 +351,28 @@ export function glow(colour: string | number, intensity = 1.25): THREE.MeshBasic
   });
 }
 
+/**
+ * Architectural glazing.
+ *
+ * One definition for the six districts that have glass. It is dielectric,
+ * because glass is not a metal: the metalness these carried individually — up
+ * to 0.62 — is what turned the façades into mirrors of the scene's studio
+ * environment. Roughness is high enough that the reflection is a sheen rather
+ * than an image.
+ */
+export function glazing(colour: number, options: { opacity?: number } = {}): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({
+    color: colour,
+    roughness: 0.42,
+    metalness: 0.1,
+  });
+  if (options.opacity !== undefined) {
+    material.transparent = true;
+    material.opacity = options.opacity;
+  }
+  return material;
+}
+
 /** A matte, deliberately under-lit material for recesses and soffits. */
 export function shadowed(colour: number): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
