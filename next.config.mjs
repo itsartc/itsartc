@@ -3,8 +3,8 @@ const nextConfig = {
   reactStrictMode: true,
   async redirects() {
     return [
-      // Downtown was built at a parallel route while the imported world still
-      // served `/`. It is now the app itself; this keeps the old link working.
+      // Downtown was a generated city that briefly served `/`. It is gone, but
+      // the link it was developed at is kept alive rather than left to 404.
       { source: "/downtown", destination: "/", permanent: true },
     ];
   },

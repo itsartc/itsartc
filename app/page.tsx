@@ -1,18 +1,18 @@
 import dynamic from "next/dynamic";
 
 // Three.js touches `window`, so the canvas never renders on the server.
-const DowntownCanvas = dynamic(() => import("@/three/DowntownCanvas"), { ssr: false });
+const CityCanvas = dynamic(() => import("@/three/CityCanvas"), { ssr: false });
 
 /**
  * The world.
  *
- * Downtown is generated on the client from layout data, so there is no model to
- * download and nothing to wait on beyond the texture library.
+ * A single imported GLB. There is a model to download before anything is
+ * visible, which is what the canvas's loading state is for.
  */
 export default function Home() {
   return (
     <main className="fixed inset-0 bg-[#12161c]">
-      <DowntownCanvas />
+      <CityCanvas />
     </main>
   );
 }
