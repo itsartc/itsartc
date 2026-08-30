@@ -3,48 +3,39 @@ import type { Building, CityMap, District, FacadeStyle, Plaza, Prop, Road, Sidew
 /**
  * Generates Downtown as a compact, symmetrical launch city.
  *
- * A three-by-three plan: eight building blocks in a ring around a central
- * park. The middle column is as wide as the park and the middle row as deep,
- * so the green keeps exactly the size and position it had under the earlier
- * four-by-four plan — 162 by 138 metres at (102, 90) — and the map keeps its
- * overall 366 by 318. Only the ring around it changed.
+ * A three-by-three grid of nine equal square cells. The middle one is the
+ * park; the other eight are districts. Every block is the same size, so every
+ * building is the same size, and the plan reads as the diagram it is.
  *
- * That makes the four cardinal blocks long: they face the park across its full
- * width, which frames the green the way a square is framed rather than merely
- * bounded. The four corners stay at the original block size.
+ * An earlier attempt kept the park at its old two-by-two dimensions by making
+ * the middle column and row wider than the outer ones. That is arithmetically
+ * a three-by-three, but it stretched the four cardinal buildings to 150 and
+ * 126 metres — three times the length of the corners — which is not what a
+ * three-by-three should look like. Equal cells, equal buildings.
  *
  * Everything is mirrored across both map axes. District identities differ, but
  * opposite blocks share footprint, height, material family and street
  * furniture, so the plan reads as intentionally symmetrical.
  */
 
-/** Metres. */
+/** Metres. One constant sets the whole city's scale. */
+const BLOCK = 88;
 const ROAD_WIDTH = 14;
 const SIDEWALK_WIDTH = 4.5;
-
-/**
- * Column widths and row depths. The middle of each is the park's own span,
- * which is what keeps the green unchanged while the ring around it shrinks
- * from twelve blocks to eight.
- */
-const COLUMN_W = [74, 162, 74] as const;
-const ROW_D = [62, 138, 62] as const;
-const COLS = COLUMN_W.length;
-const ROWS = ROW_D.length;
+const COLS = 3;
+const ROWS = 3;
+/** Grid pitch, and the map's overall extent. */
+const STRIDE = BLOCK + ROAD_WIDTH;
+const MAP_SPAN = COLS * STRIDE + ROAD_WIDTH;
 
 const FLOOR_HEIGHT = 3.6;
 const PATH_WIDTH = 8;
-const BUILDING_INSET_X = 6;
-const BUILDING_INSET_Z = 6;
+const BUILDING_INSET = 6;
 
 type DistrictSpec = readonly [id: string, name: string, accent: string];
 
 /**
  * The eight districts, one per block.
- *
- * The four long cardinal blocks take the districts whose designs are built on
- * repetition and so carry a 126- or 150-metre frontage; the corners take the
- * ones composed around a centre, which is what a 62-metre façade suits.
  *
  * Healthcare, Operations, Legal and Product have no block in this plan. Their
  * modules are still registered in the district signatures, so swapping any of
@@ -61,13 +52,6 @@ const DISTRICTS_BY_BLOCK: Record<string, DistrictSpec> = {
   "2-2": ["creative-district", "Creative District", "#f778ba"],
 };
 
-/** Where each block starts, and the road that precedes it. */
-function offsets(sizes: readonly number[]): { road: number[]; start: number[] } {
-  const road = [0];
-  for (const size of sizes) road.push(road[road.length - 1] + ROAD_WIDTH + size);
-  return { road, start: road.slice(0, -1).map((r) => r + ROAD_WIDTH) };
-}
-
 interface BuildingTemplate {
   floors: number;
   style: FacadeStyle;
@@ -75,8 +59,9 @@ interface BuildingTemplate {
 }
 
 /**
- * Two mirrored families: the four long cardinal blocks and the four corners.
- * Opposite blocks are identical, so the skyline balances across both axes.
+ * Two mirrored families. The corners are lower than the four blocks facing the
+ * park head-on, which is the only variation left once every footprint matches
+ * — and it is symmetric across both axes.
  */
 function buildingTemplate(row: number, col: number): BuildingTemplate {
   const corner = (row === 0 || row === ROWS - 1) && (col === 0 || col === COLS - 1);
@@ -86,11 +71,6 @@ function buildingTemplate(row: number, col: number): BuildingTemplate {
 }
 
 export function generateDowntown(_seed = 20260829): CityMap {
-  const columns = offsets(COLUMN_W);
-  const rows = offsets(ROW_D);
-  const width = columns.road[COLS] + ROAD_WIDTH;
-  const depth = rows.road[ROWS] + ROAD_WIDTH;
-
   const roads: Road[] = [];
   const sidewalks: Sidewalk[] = [];
   const buildings: Building[] = [];
@@ -98,21 +78,21 @@ export function generateDowntown(_seed = 20260829): CityMap {
   const plazas: Plaza[] = [];
   const districts: District[] = [];
 
-  const parkX = columns.start[1];
-  const parkZ = rows.start[1];
-  const parkW = COLUMN_W[1];
-  const parkD = ROW_D[1];
-  const centreX = parkX + parkW / 2;
-  const centreZ = parkZ + parkD / 2;
+  /** Where a cell starts, given its row or column index. */
+  const cell = (index: number) => index * STRIDE + ROAD_WIDTH;
+
+  const parkX = cell(1);
+  const parkZ = cell(1);
+  const centreX = parkX + BLOCK / 2;
+  const centreZ = parkZ + BLOCK / 2;
 
   // --- Roads ---------------------------------------------------------------
-  // No road crosses the park now: its four edges are grid roads, so the
-  // splitting the four-by-four plan needed is gone with it.
+  // No road crosses the park: its four edges are grid roads.
   for (let col = 0; col <= COLS; col++) {
-    roads.push({ id: `ave-${col}`, x: columns.road[col], z: 0, w: ROAD_WIDTH, d: depth, axis: "z" });
+    roads.push({ id: `ave-${col}`, x: col * STRIDE, z: 0, w: ROAD_WIDTH, d: MAP_SPAN, axis: "z" });
   }
   for (let row = 0; row <= ROWS; row++) {
-    roads.push({ id: `street-${row}`, x: 0, z: rows.road[row], w: width, d: ROAD_WIDTH, axis: "x" });
+    roads.push({ id: `street-${row}`, x: 0, z: row * STRIDE, w: MAP_SPAN, d: ROAD_WIDTH, axis: "x" });
   }
 
   // --- Building blocks -----------------------------------------------------
@@ -120,16 +100,14 @@ export function generateDowntown(_seed = 20260829): CityMap {
     for (let col = 0; col < COLS; col++) {
       if (isParkBlock(row, col)) continue;
 
-      const blockX = columns.start[col];
-      const blockZ = rows.start[row];
-      const blockW = COLUMN_W[col];
-      const blockD = ROW_D[row];
+      const blockX = cell(col);
+      const blockZ = cell(row);
       const district = DISTRICTS_BY_BLOCK[`${row}-${col}`];
       if (!district) throw new Error(`Missing district for block ${row},${col}`);
 
-      sidewalks.push(blockSidewalk(blockX, blockZ, blockW, blockD));
-      addDistrictAndBuilding(districts, buildings, row, col, blockX, blockZ, blockW, blockD, district);
-      addBlockProps(props, blockX, blockZ, blockW, blockD);
+      sidewalks.push(blockSidewalk(blockX, blockZ));
+      addDistrictAndBuilding(districts, buildings, row, col, blockX, blockZ, district);
+      addBlockProps(props, blockX, blockZ);
     }
   }
 
@@ -138,12 +116,12 @@ export function generateDowntown(_seed = 20260829): CityMap {
   sidewalks.push({
     x: parkX - SIDEWALK_WIDTH,
     z: parkZ - SIDEWALK_WIDTH,
-    w: parkW + SIDEWALK_WIDTH * 2,
-    d: parkD + SIDEWALK_WIDTH * 2,
+    w: BLOCK + SIDEWALK_WIDTH * 2,
+    d: BLOCK + SIDEWALK_WIDTH * 2,
   });
 
-  addParkSurfaces(plazas, parkX, parkZ, parkW, parkD, centreX, centreZ);
-  addParkProps(props, parkX, parkZ, parkW, parkD, centreX, centreZ);
+  addParkSurfaces(plazas, parkX, parkZ, BLOCK, BLOCK, centreX, centreZ);
+  addParkProps(props, parkX, parkZ, BLOCK, BLOCK, centreX, centreZ);
 
   districts.push({
     id: "networking-park",
@@ -156,10 +134,10 @@ export function generateDowntown(_seed = 20260829): CityMap {
   return {
     id: "downtown",
     name: "Downtown",
-    version: 3,
-    size: { w: width, d: depth },
+    version: 4,
+    size: { w: MAP_SPAN, d: MAP_SPAN },
     // Arrive just south of the fountain rather than inside its collider.
-    spawn: { x: centreX, z: centreZ - 15 },
+    spawn: { x: centreX, z: centreZ - 13 },
     districts,
     roads,
     sidewalks,
@@ -173,12 +151,12 @@ function isParkBlock(row: number, col: number) {
   return row === 1 && col === 1;
 }
 
-function blockSidewalk(x: number, z: number, w: number, d: number): Sidewalk {
+function blockSidewalk(x: number, z: number): Sidewalk {
   return {
     x: x - SIDEWALK_WIDTH,
     z: z - SIDEWALK_WIDTH,
-    w: w + SIDEWALK_WIDTH * 2,
-    d: d + SIDEWALK_WIDTH * 2,
+    w: BLOCK + SIDEWALK_WIDTH * 2,
+    d: BLOCK + SIDEWALK_WIDTH * 2,
   };
 }
 
@@ -189,28 +167,25 @@ function addDistrictAndBuilding(
   col: number,
   blockX: number,
   blockZ: number,
-  blockW: number,
-  blockD: number,
   district: DistrictSpec,
 ) {
   const [id, name, accent] = district;
   const template = buildingTemplate(row, col);
-  const x = blockX + BUILDING_INSET_X;
-  const z = blockZ + BUILDING_INSET_Z;
-  const w = blockW - BUILDING_INSET_X * 2;
-  const d = blockD - BUILDING_INSET_Z * 2;
+  const x = blockX + BUILDING_INSET;
+  const z = blockZ + BUILDING_INSET;
+  const size = BLOCK - BUILDING_INSET * 2;
 
-  districts.push({ id, name, x: blockX + blockW / 2, z: blockZ + blockD / 2, accent });
+  districts.push({ id, name, x: blockX + BLOCK / 2, z: blockZ + BLOCK / 2, accent });
 
   // Every entrance faces the park.
   const entrance =
     row === 0
-      ? { x: x + w / 2, z: z + d }
+      ? { x: x + size / 2, z: z + size }
       : row === ROWS - 1
-        ? { x: x + w / 2, z }
+        ? { x: x + size / 2, z }
         : col === 0
-          ? { x: x + w, z: z + d / 2 }
-          : { x, z: z + d / 2 };
+          ? { x: x + size, z: z + size / 2 }
+          : { x, z: z + size / 2 };
 
   buildings.push({
     id: `building-${id}`,
@@ -218,8 +193,8 @@ function addDistrictAndBuilding(
     districtId: id,
     x,
     z,
-    w,
-    d,
+    w: size,
+    d: size,
     height: template.floors * FLOOR_HEIGHT,
     floors: template.floors,
     style: template.style,
@@ -302,8 +277,10 @@ function addParkSurfaces(
  * edge rather than listed. Deriving them symmetrically is what keeps opposite
  * blocks identical without having to state each one.
  */
-function addBlockProps(out: Prop[], x: number, z: number, w: number, d: number) {
+function addBlockProps(out: Prop[], x: number, z: number) {
   const edge = 2.2;
+  const w = BLOCK;
+  const d = BLOCK;
 
   /** Even pitch along an edge, symmetric about its middle, entrance kept clear. */
   const along = (length: number) => {
@@ -336,6 +313,14 @@ function addBlockProps(out: Prop[], x: number, z: number, w: number, d: number) 
   }
 }
 
+/**
+ * Park planting, placed as fractions of the park rather than in metres.
+ *
+ * The offsets used to be absolute, authored against a 162-by-138 park; at the
+ * park's present size the outermost trees would have crossed over each other
+ * when mirrored. Fractions survive a change of scale, which is the whole point
+ * of having one constant set the city's size.
+ */
 function addParkProps(
   out: Prop[],
   x: number,
@@ -345,70 +330,55 @@ function addParkProps(
   centreX: number,
   centreZ: number,
 ) {
-  // Author one north-west quadrant, then mirror it into the other three.
-  const treeOffsets: Array<[number, number]> = [
-    [14, 13],
-    [35, 16],
-    [58, 12],
-    [18, 34],
-    [43, 38],
-    [65, 49],
-    [12, 56],
+  // Authored once for the north-west quadrant, then mirrored into the other
+  // three. Every fraction is below 0.5 so nothing crosses the centre paths.
+  const trees: Array<[number, number]> = [
+    [0.1, 0.13],
+    [0.26, 0.29],
+    [0.4, 0.12],
+    [0.13, 0.4],
+    // Kept off the crossing paths, which are each district's axial view.
+    [0.3, 0.38],
   ];
 
-  for (const [offsetX, offsetZ] of treeOffsets) {
+  for (const [fx, fz] of trees) {
     for (const mirrorX of [false, true]) {
       for (const mirrorZ of [false, true]) {
         out.push({
           type: "tree",
-          x: mirrorX ? x + w - offsetX : x + offsetX,
-          z: mirrorZ ? z + d - offsetZ : z + offsetZ,
+          x: mirrorX ? x + w * (1 - fx) : x + w * fx,
+          z: mirrorZ ? z + d * (1 - fz) : z + d * fz,
           rotation: 0,
         });
       }
     }
   }
 
-  // Low planted borders, mirrored at the four outer corners of the park.
-  for (const offsetX of [8, 26, 44, 62]) {
+  // Low planted borders along the park's four edges.
+  for (const fraction of [0.11, 0.29]) {
     for (const mirrorX of [false, true]) {
       for (const mirrorZ of [false, true]) {
-        out.push({
-          type: "planter",
-          x: mirrorX ? x + w - offsetX : x + offsetX,
-          z: mirrorZ ? z + d - 5 : z + 5,
-          rotation: 0,
-        });
+        const px = mirrorX ? x + w * (1 - fraction) : x + w * fraction;
+        const pz = mirrorZ ? z + d - 5 : z + 5;
+        out.push({ type: "planter", x: px, z: pz, rotation: 0 });
       }
     }
   }
 
   // Benches face the two crossing paths from matching positions.
-  for (const offset of [-46, 46]) {
+  for (const offset of [-w * 0.29, w * 0.29]) {
     out.push({ type: "bench", x: centreX + offset, z: centreZ - 6, rotation: 0 });
     out.push({ type: "bench", x: centreX + offset, z: centreZ + 6, rotation: Math.PI });
-    out.push({
-      type: "bench",
-      x: centreX - 6,
-      z: centreZ + offset,
-      rotation: Math.PI / 2,
-    });
-    out.push({
-      type: "bench",
-      x: centreX + 6,
-      z: centreZ + offset,
-      rotation: -Math.PI / 2,
-    });
+    out.push({ type: "bench", x: centreX - 6, z: centreZ + offset, rotation: Math.PI / 2 });
+    out.push({ type: "bench", x: centreX + 6, z: centreZ + offset, rotation: -Math.PI / 2 });
   }
 
-  // Park-edge lighting leaves every cardinal entrance open and symmetrical.
-  for (const offset of [28, w - 28]) {
-    out.push({ type: "streetlight", x: x + offset, z: z - 2.2, rotation: 0 });
-    out.push({ type: "streetlight", x: x + offset, z: z + d + 2.2, rotation: Math.PI });
-  }
-  for (const offset of [24, d - 24]) {
-    out.push({ type: "streetlight", x: x - 2.2, z: z + offset, rotation: -Math.PI / 2 });
-    out.push({ type: "streetlight", x: x + w + 2.2, z: z + offset, rotation: Math.PI / 2 });
+  // Park-edge lighting, leaving every cardinal entrance open and symmetrical.
+  for (const fraction of [0.25, 0.75]) {
+    out.push({ type: "streetlight", x: x + w * fraction, z: z - 2.2, rotation: 0 });
+    out.push({ type: "streetlight", x: x + w * fraction, z: z + d + 2.2, rotation: Math.PI });
+    out.push({ type: "streetlight", x: x - 2.2, z: z + d * fraction, rotation: -Math.PI / 2 });
+    out.push({ type: "streetlight", x: x + w + 2.2, z: z + d * fraction, rotation: Math.PI / 2 });
   }
 
   out.push({ type: "fountain", x: centreX, z: centreZ, rotation: 0 });
