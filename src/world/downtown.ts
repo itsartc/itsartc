@@ -28,19 +28,27 @@ const BUILDING_INSET_Z = 6;
 
 type DistrictSpec = readonly [id: string, name: string, accent: string];
 
+/**
+ * The twelve districts, one per block.
+ *
+ * They name professional functions rather than places, so a member can find
+ * the part of the world that matches what they do. Where a block's design
+ * already suited its successor the two were kept together — the tower stays
+ * with Tech, the exchange with Finance — so renaming cost no geometry.
+ */
 const DISTRICTS_BY_BLOCK: Record<string, DistrictSpec> = {
-  "0-0": ["founder-cafe", "Founder Café", "#e0a53f"],
-  "0-1": ["ai-district", "AI District", "#a371f7"],
-  "0-2": ["hiring-hall", "Hiring Hall", "#3fb950"],
-  "0-3": ["investor-row", "Investor Row", "#d9a441"],
-  "1-0": ["builder-yard", "Builder Yard", "#ce7b3c"],
-  "1-3": ["after-hours", "After Hours", "#8b5cf6"],
-  "2-0": ["learning-hub", "Learning Hub", "#58a6ff"],
-  "2-3": ["creative-studios", "Creative Studios", "#db61a2"],
-  "3-0": ["community-hall", "Community Hall", "#56d364"],
-  "3-1": ["shops", "Shops", "#f2cc60"],
-  "3-2": ["event-hall", "Event Hall", "#ff7b72"],
-  "3-3": ["member-lounge", "Member Lounge", "#79c0ff"],
+  "0-0": ["founder-district", "Founder District", "#e0a53f"],
+  "0-1": ["tech-district", "Tech District", "#a371f7"],
+  "0-2": ["people-district", "People District", "#3fb950"],
+  "0-3": ["consulting-district", "Consulting District", "#58a6ff"],
+  "1-0": ["product-district", "Product District", "#ce7b3c"],
+  "1-3": ["marketing-district", "Marketing District", "#db61a2"],
+  "2-0": ["operations-district", "Operations District", "#8b949e"],
+  "2-3": ["creative-district", "Creative District", "#f778ba"],
+  "3-0": ["healthcare-district", "Healthcare District", "#2dd4bf"],
+  "3-1": ["sales-district", "Sales District", "#f2cc60"],
+  "3-2": ["finance-district", "Finance District", "#ff7b72"],
+  "3-3": ["legal-district", "Legal District", "#79c0ff"],
 };
 
 interface BuildingTemplate {

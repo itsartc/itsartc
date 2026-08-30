@@ -1,6 +1,6 @@
 import type { DistrictSignature } from "./types";
-import { aiDistrict } from "./aiDistrict";
-import { eventHall } from "./eventHall";
+import { financeDistrict } from "./financeDistrict";
+import { techDistrict } from "./techDistrict";
 
 /**
  * Districts with a bespoke architectural identity.
@@ -12,8 +12,8 @@ import { eventHall } from "./eventHall";
  * Adding a design means writing one self-contained module and one line here.
  */
 export const DISTRICT_SIGNATURES: Record<string, DistrictSignature> = {
-  "ai-district": aiDistrict,
-  "event-hall": eventHall,
+  "tech-district": techDistrict,
+  "finance-district": financeDistrict,
 };
 
 export type { DistrictSignature, SignatureContext } from "./types";

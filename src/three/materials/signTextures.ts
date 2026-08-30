@@ -4,7 +4,7 @@ import * as THREE from "three";
  * Signage and façade textures drawn in code.
  *
  * These are the surfaces a sponsor buys: a vertical LED banner hung down a
- * façade, a marquee over a venue's doors. Drawing them rather than shipping
+ * façade, a marquee over a building's doors. Drawing them rather than shipping
  * images means a building's branding is *data* — change a name and two colours
  * and the façade re-skins itself, with no asset pipeline and no download.
  *
@@ -80,10 +80,10 @@ export function makeVerticalBanner(text: string, top: string, bottom: string): T
 }
 
 /**
- * A venue marquee: a small standing line over a large title.
+ * A marquee board: a small standing line over a large title.
  *
  * Authored wide and shallow so it maps onto a board above an entrance without
- * stretching. The title is measured and fitted rather than assumed — a venue
+ * stretching. The title is measured and fitted rather than assumed — a district
  * name is authored data, and a fixed size clips the long ones.
  */
 export function makeMarquee(title: string, standing: string, accent: string): THREE.CanvasTexture {

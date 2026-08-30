@@ -7,7 +7,7 @@ import { BLOOM_LAYER } from "../../postprocessing/SelectiveBloom";
 import type { DistrictSignature, EntranceSign, SignatureContext } from "./types";
 
 /**
- * The AI District.
+ * The Tech District.
  *
  * It keeps the height of the block it stands in — nine storeys, level with its
  * neighbours — and earns its identity from form and light rather than from
@@ -70,7 +70,7 @@ const STRUCT = 0x39424b;
 const ACCENT = "#a371f7";
 const CYAN = "#22d3ee";
 
-export const aiDistrict: DistrictSignature = {
+export const techDistrict: DistrictSignature = {
   /**
    * The default plaque sits just above the door, which here would put it in the
    * middle of the portal's glazing. It belongs on the pier line instead, two
@@ -226,10 +226,10 @@ function buildCornerDrums(
     );
   }
 
-  ctx.add("ai-glass", glassMaterial, shells);
-  ctx.add("ai-frame", frameMaterial, caps);
+  ctx.add("tech-glass", glassMaterial, shells);
+  ctx.add("tech-frame", frameMaterial, caps);
   ctx.add(
-    "ai-seam",
+    "tech-seam",
     () =>
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(CYAN).multiplyScalar(1.35),
@@ -262,7 +262,7 @@ function buildGlazing(ctx: SignatureContext, origin: THREE.Vector3, yaw: number,
   const flankCentre = (flatHalfWidth + pierEdge) / 2;
   const aboveBase = CANOPY_TOP + 0.4;
 
-  ctx.add("ai-glass", glassMaterial, [
+  ctx.add("tech-glass", glassMaterial, [
     // Entrance face, split around the portal and closed above the canopy.
     orientedBox(flankWidth, height, SKIN_THICKNESS, -flankCentre, midY, SKIN_OFFSET, origin, yaw),
     orientedBox(flankWidth, height, SKIN_THICKNESS, flankCentre, midY, SKIN_OFFSET, origin, yaw),
@@ -373,7 +373,7 @@ function buildRibbons(ctx: SignatureContext, origin: THREE.Vector3, yaw: number,
     }
   }
 
-  ctx.add("ai-frame", frameMaterial, parts);
+  ctx.add("tech-frame", frameMaterial, parts);
 }
 
 /**
@@ -413,13 +413,13 @@ function buildPortal(ctx: SignatureContext, origin: THREE.Vector3, yaw: number, 
       drumRing(DRUM_RADIUS + CANOPY_PROJECTION * 0.55, canopyHeight, canopyMid, corner, origin, yaw),
     );
   }
-  ctx.add("ai-frame", frameMaterial, structure);
+  ctx.add("tech-frame", frameMaterial, structure);
 
   // Nothing in this scene casts shadows, so a projecting canopy has no shade
   // under it and flattens into just another band. A dark soffit plate supplies
   // the shadow the light cannot, which is what makes the brow read as depth.
   ctx.add(
-    "ai-soffit",
+    "tech-soffit",
     () => new THREE.MeshStandardMaterial({ color: 0x1d232a, roughness: 0.85 }),
     orientedBox(
       flatHalfWidth * 2 - 0.4,
@@ -440,7 +440,7 @@ function buildPortal(ctx: SignatureContext, origin: THREE.Vector3, yaw: number, 
   const doorHalf = 2.6;
   const doorHead = 3.75;
   ctx.add(
-    "ai-reveal",
+    "tech-reveal",
     () =>
       new THREE.MeshStandardMaterial({
         color: 0x161d25,
@@ -485,7 +485,7 @@ function buildPortal(ctx: SignatureContext, origin: THREE.Vector3, yaw: number, 
   );
 
   ctx.add(
-    "ai-portal-light",
+    "tech-portal-light",
     () =>
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(CYAN).multiplyScalar(1.3),
@@ -564,7 +564,7 @@ function buildExoskeleton(
   }
 
   ctx.add(
-    "ai-truss",
+    "tech-truss",
     () => new THREE.MeshStandardMaterial({ color: FRAME, roughness: 0.6, metalness: 0.18 }),
     parts,
   );
@@ -592,7 +592,7 @@ function buildBanner(
   const x = -shape.flatHalfWidth + 5.6;
 
   ctx.add(
-    "ai-banner",
+    "tech-banner",
     () =>
       new THREE.MeshStandardMaterial({
         map: banner,
@@ -614,7 +614,7 @@ function buildBanner(
 
   // Two brackets, so the panel reads as hung rather than floating.
   ctx.add(
-    "ai-bracket",
+    "tech-bracket",
     () => new THREE.MeshStandardMaterial({ color: STRUCT, roughness: 0.6, metalness: 0.3 }),
     [
       orientedBox(0.3, 0.3, 1, x - 2.2, top - 1.2, 0.6, origin, yaw),
@@ -659,7 +659,7 @@ function buildOculus(ctx: SignatureContext, origin: THREE.Vector3, yaw: number) 
   }
 
   ctx.add(
-    "ai-oculus",
+    "tech-oculus",
     () =>
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(ACCENT).multiplyScalar(1.15),
@@ -671,7 +671,7 @@ function buildOculus(ctx: SignatureContext, origin: THREE.Vector3, yaw: number) 
 
   // Two arms back to the glazing, so the ring is mounted rather than floating.
   ctx.add(
-    "ai-bracket",
+    "tech-bracket",
     () => new THREE.MeshStandardMaterial({ color: STRUCT, roughness: 0.6, metalness: 0.3 }),
     [
       orientedBox(0.26, 0.26, standoff, -5.4, centreY, standoff / 2, origin, yaw),
@@ -706,9 +706,9 @@ function buildCrown(ctx: SignatureContext, origin: THREE.Vector3, yaw: number, s
     light.push(drumRing(DRUM_RADIUS + 0.8, 0.24, bottom - 0.2, corner, origin, yaw));
   }
 
-  ctx.add("ai-frame", frameMaterial, fascia);
+  ctx.add("tech-frame", frameMaterial, fascia);
   ctx.add(
-    "ai-crown-light",
+    "tech-crown-light",
     () =>
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(ACCENT).multiplyScalar(1.25),
@@ -757,7 +757,7 @@ function buildHalo(ctx: SignatureContext, origin: THREE.Vector3, yaw: number, sh
     orientedBox(5.5, 1.7, 5, 11, parapet + 0.85, centreZ + 11, origin, yaw),
   );
   ctx.add(
-    "ai-roof-plant",
+    "tech-roof-plant",
     () => new THREE.MeshStandardMaterial({ color: STRUCT, roughness: 0.75, metalness: 0.25 }),
     masts,
   );
@@ -767,7 +767,7 @@ function buildHalo(ctx: SignatureContext, origin: THREE.Vector3, yaw: number, sh
   outer.translate(0, ringY, centreZ);
   transformFromEntrance(outer, origin, yaw);
   ctx.add(
-    "ai-halo",
+    "tech-halo",
     () =>
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(ACCENT).multiplyScalar(1.2),
@@ -785,7 +785,7 @@ function buildHalo(ctx: SignatureContext, origin: THREE.Vector3, yaw: number, sh
     toneMapped: false,
   });
   const inner = new THREE.Mesh(innerGeometry, innerMaterial);
-  inner.name = "ai-district-halo";
+  inner.name = "tech-district-halo";
   inner.layers.enable(BLOOM_LAYER);
   inner.rotation.z = 0.42;
   inner.position

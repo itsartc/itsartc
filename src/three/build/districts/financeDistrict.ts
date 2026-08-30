@@ -11,28 +11,29 @@ import { makeMarquee } from "../../materials/signTextures";
 import type { DistrictSignature, EntranceSign, SignatureContext } from "./types";
 
 /**
- * The Event Hall.
+ * The Finance District, built as an exchange.
  *
- * Deliberately the opposite of the AI District in every respect that matters.
- * The two sit on diagonally opposite corners of the park with identical
- * footprints and identical heights, so they are constantly seen together: if
- * this one were also dark glass and cool light with a glowing emblem, neither
- * would read as special. So where that building is glazed, curved, banded and
- * cool, this one is opaque, angular, unbroken and warm.
+ * Deliberately the opposite of the Tech District in every respect that
+ * matters. The two sit on diagonally opposite corners of the park with
+ * identical footprints and identical heights, so they are constantly seen
+ * together: if this one were also dark glass and cool light with a glowing
+ * emblem, neither would read as special. So where that building is glazed,
+ * curved, banded and cool, this one is opaque, angular, unbroken and warm.
  *
  * The move the whole design rests on is having **no visible floors**. Every
  * other building downtown announces nine storeys through a window grid; a
- * venue is one big room, and hiding the storeys behind a solid folded skin is
- * what makes this read as a hall rather than an office block with a sign on
- * it. The shell underneath is untouched, so the interior and doorway are
- * unaffected — the skin simply covers it.
+ * trading floor is one big room, and hiding the storeys behind a solid folded
+ * skin is what makes this read as an exchange rather than an office block
+ * with a sign on it. The shell underneath is untouched, so the interior and
+ * doorway are unaffected — the skin simply covers it.
  *
  * The forecourt is the other half of the argument. This is the one building
- * that can give people a reason to gather *outside* it, so it gets a plinth,
- * a step and a colonnade deep enough to stand under. The existing movement
- * code already handles this: PlayerController snaps up any riser under 0.55m
- * and BoxCollision treats the top of a solid as ground, so a low plinth needs
- * no new physics.
+ * that can give people a reason to gather *outside* it — every exchange in
+ * the world has steps people stand on — so it gets a plinth, a step and a
+ * colonnade deep enough to shelter under. The existing movement code already
+ * handles this: PlayerController snaps up any riser under 0.55m and
+ * BoxCollision treats the top of a solid as ground, so a low plinth needs no
+ * new physics.
  */
 
 /** The folded skin: how far it stands off the wall, and how deep it folds. */
@@ -80,7 +81,7 @@ const DARK = 0x2a1e18;
 const STONE = 0xc3b9ab;
 const ACCENT = "#ff7b72";
 
-export const eventHall: DistrictSignature = {
+export const financeDistrict: DistrictSignature = {
   /**
    * Small, and low over the doors.
    *
@@ -141,7 +142,7 @@ function buildPiers(
       );
     }
   }
-  ctx.add("hall-pier", () => new THREE.MeshStandardMaterial({ color: PIER, roughness: 0.62, metalness: 0.35 }), parts);
+  ctx.add("finance-pier", () => new THREE.MeshStandardMaterial({ color: PIER, roughness: 0.62, metalness: 0.35 }), parts);
 }
 
 interface Point {
@@ -268,7 +269,7 @@ function buildFoldedSkin(
   }
 
   ctx.add(
-    "hall-skin",
+    "finance-skin",
     () => new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.48, metalness: 0.5 }),
     parts,
   );
@@ -277,7 +278,7 @@ function buildFoldedSkin(
 /** The entrance recess: a dark reveal and a heavy head beam over the opening. */
 function buildRecess(ctx: SignatureContext, origin: THREE.Vector3, yaw: number, base: number) {
   ctx.add(
-    "hall-recess",
+    "finance-recess",
     () =>
       new THREE.MeshStandardMaterial({
         color: DARK,
@@ -299,7 +300,7 @@ function buildRecess(ctx: SignatureContext, origin: THREE.Vector3, yaw: number, 
   );
 
   ctx.add(
-    "hall-pier",
+    "finance-pier",
     () => new THREE.MeshStandardMaterial({ color: PIER, roughness: 0.62, metalness: 0.35 }),
     orientedBox(RECESS_HALF_WIDTH * 2 + 2.4, 1.5, 1.5, 0, RECESS_HEIGHT + 0.75, 0.55, origin, yaw),
   );
@@ -330,7 +331,7 @@ function buildForecourt(
 
   // Plinth, then one 0.35m riser down to the pavement — inside the step height
   // the player controller already handles, so no new movement code.
-  ctx.add("hall-stone", stone, [
+  ctx.add("finance-stone", stone, [
     solidBox(width, PLINTH_RISE, PLINTH_FRONT, 0, base + PLINTH_RISE / 2, PLINTH_FRONT / 2),
     solidBox(
       width - 6,
@@ -371,7 +372,7 @@ function buildForecourt(
   // A tone of its own: at the skin's colour the columns merged straight into
   // the folds behind them and the colonnade stopped reading as a colonnade.
   ctx.add(
-    "hall-colonnade",
+    "finance-colonnade",
     () => new THREE.MeshStandardMaterial({ color: COLONNADE, roughness: 0.7, metalness: 0.2 }),
     [
       ...columns,
@@ -383,7 +384,7 @@ function buildForecourt(
   // The same lesson as the AI District canopy: with no shadows in the scene, a
   // projecting plane reads as a stripe until something dark sits beneath it.
   ctx.add(
-    "hall-recess",
+    "finance-recess",
     () =>
       new THREE.MeshStandardMaterial({ color: DARK, roughness: 0.82, metalness: 0.05, envMapIntensity: 0.3 }),
     orientedBox(width - 0.6, 0.26, CANOPY_FRONT - 0.3, 0, canopyTop - 0.13, CANOPY_FRONT / 2, origin, yaw),
@@ -397,7 +398,7 @@ function buildForecourt(
     lights.push(orientedBox(2.6, 0.14, 1.4, x, canopyTop - 0.32, CANOPY_FRONT / 2, origin, yaw));
   }
   ctx.add(
-    "hall-light",
+    "finance-light",
     () =>
       new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd7a8).multiplyScalar(1.2), toneMapped: false }),
     lights,
@@ -405,19 +406,19 @@ function buildForecourt(
   );
 }
 
-/** The marquee: what is on, over the doors. */
+/** The marquee, over the doors. */
 function buildMarquee(
   building: Building,
   ctx: SignatureContext,
   origin: THREE.Vector3,
   yaw: number,
 ) {
-  const marquee = makeMarquee(building.name, "tonight", ACCENT);
+  const marquee = makeMarquee(building.name, "markets open", ACCENT);
   ctx.ownTexture(marquee);
   const height = MARQUEE_TOP - MARQUEE_BOTTOM;
 
   ctx.add(
-    "hall-marquee",
+    "finance-marquee",
     () =>
       new THREE.MeshStandardMaterial({
         map: marquee,
@@ -434,7 +435,7 @@ function buildMarquee(
   );
 
   ctx.add(
-    "hall-pier",
+    "finance-pier",
     () => new THREE.MeshStandardMaterial({ color: PIER, roughness: 0.62, metalness: 0.35 }),
     [
       orientedBox(MARQUEE_WIDTH + 1.4, 0.5, 1.1, 0, MARQUEE_TOP + 0.25, 1.3, origin, yaw),
@@ -455,12 +456,12 @@ function buildBladeSign(
   const height = top + 2.6 - bottom;
 
   ctx.add(
-    "hall-pier",
+    "finance-pier",
     () => new THREE.MeshStandardMaterial({ color: PIER, roughness: 0.62, metalness: 0.35 }),
     orientedBox(0.7, height, 3.2, -halfWidth - 0.6, bottom + height / 2, 1.9, origin, yaw),
   );
   ctx.add(
-    "hall-blade",
+    "finance-blade",
     () =>
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(ACCENT).multiplyScalar(1.25),
@@ -508,7 +509,7 @@ function buildCornice(
   );
 
   ctx.add(
-    "hall-pier",
+    "finance-pier",
     () => new THREE.MeshStandardMaterial({ color: PIER, roughness: 0.62, metalness: 0.35 }),
     parts,
   );
