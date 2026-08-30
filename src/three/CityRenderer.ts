@@ -88,6 +88,7 @@ export class CityRenderer {
   private player: PlayerController | null = null;
   private chase: ThirdPersonCamera | null = null;
   private avatar: THREE.Group | null = null;
+  private updateAvatar: ((elapsed: number, moving: boolean, speed: number) => void) | null = null;
   private disposeAvatar: (() => void) | null = null;
 
   private model: THREE.Group | null = null;
@@ -296,6 +297,7 @@ export class CityRenderer {
 
     const avatar = buildAvatar();
     this.avatar = avatar.group;
+    this.updateAvatar = avatar.update;
     this.disposeAvatar = avatar.dispose;
     this.avatar.position.copy(spawn);
     this.scene.add(this.avatar);
@@ -337,6 +339,7 @@ export class CityRenderer {
         this.player.position.z,
       );
       this.avatar.rotation.y = this.player.facing;
+      this.updateAvatar?.(this.elapsed, this.player.isMoving, this.player.speed);
 
       this.chase.update(dt, this.player.position, this.player.facing, this.player.isMoving);
     }
