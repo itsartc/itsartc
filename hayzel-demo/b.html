@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Book a self-guided viewing</title>
+<meta name="description" content="Pick the property you asked about and a time that suits you. Takes under a minute.">
+<meta name="theme-color" content="#EEF2F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1B1E" media="(prefers-color-scheme: dark)">
+<meta name="robots" content="noindex">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="hayzel">
+<meta property="og:title" content="Book a self-guided viewing">
+<meta property="og:description" content="Pick the property you asked about and a time that suits you. Takes under a minute.">
+<meta property="og:image" content="https://hayzel-demo.vercel.app/og-book.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Book a self-guided viewing">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Book a self-guided viewing">
+<meta name="twitter:description" content="Pick the property you asked about and a time that suits you. Takes under a minute.">
+<meta name="twitter:image" content="https://hayzel-demo.vercel.app/og-book.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/assets/hz.css">
+</head>
+<body>
+<main id="app" class="b-page" aria-live="polite">
+  <div class="profile"><div class="spinner" aria-label="Loading"></div></div>
+</main>
+<div id="overlay" class="overlay uae" hidden role="status" aria-live="assertive"><div class="overlay-box" id="overlayBox"></div></div>
+
+<script src="/assets/hz.js"></script>
+<script>
+(function () {
+  'use strict';
+  var esc = HZ.esc, app = document.getElementById('app');
+  var params = new URLSearchParams(location.search);
+  var cfg = HZ.decodeConfig(params.get('c') || '');
+  var listings = [], sel = { id: null, date: null, time: null }, details = { name: '', phone: '', movein: '', cheques: '' };
+  var BK = 'hz_bookings';
+
+  function bookings() { return HZ.store.get(BK, {}) || {}; }
+  function saveBookings(b) { HZ.store.set(BK, b); }
+  function slotKey(date, time) { return cfg.a.trim().toLowerCase() + '|' + date + '|' + time; }
+  function mineForAgent() {
+    var b = bookings(), now = Date.now(), out = [];
+    Object.keys(b).forEach(function (k) {
+      var x = b[k];
+      if (x.agent.toLowerCase() === cfg.a.trim().toLowerCase() && slotDate(x.date, x.time).getTime() + 30 * 60000 > now) out.push(x);
+    });
+    return out.sort(function (a, c) { return (a.date + a.time) < (c.date + c.time) ? -1 : 1; });
+  }
+  function slotDate(dateKey, time) {
+    var d = dateKey.split('-'), t = time.split(':');
+    return new Date(+d[0], +d[1] - 1, +d[2], +t[0], +t[1]);
+  }
+  function findListing(id) { for (var i = 0; i < listings.length; i++) if (listings[i].id === id) return listings[i]; return null; }
+  function addr(L) { return [L.unit ? 'Unit ' + L.unit : '', L.community, 'Dubai'].filter(Boolean).join(', '); }
+
+  function scrollTop() { window.scrollTo(0, 0); }
+  function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
+  var backIcon = HZ.chevron;
+  function backBtn(target, label) { return '<div class="b-bar"><button class="back" type="button" data-back="' + esc(target) + '">' + backIcon + (label || 'Back') + '</button></div>'; }
+
+  if (!cfg) {
+    app.innerHTML = '<div class="profile fade-in"><span class="avatar"><span class="ini">!</span></span>' +
+      '<h1 class="p-name">This link isn\u2019t complete.</h1><p class="p-intro">Ask your agent to send it again.</p></div>' +
+      '<footer class="b-foot"><span>Self-viewing by <b class="wordmark">hayzel</b></span><small>Demo only</small></footer>';
+    return;
+  }
+  document.title = 'Book a viewing with ' + cfg.a;
+
+  HZ.loadSource(cfg.s).then(function (all) {
+    listings = HZ.agentListings(all, cfg.a);
+    render();
+  }, function (e) {
+    app.innerHTML = '<div class="profile fade-in">' + HZ.imgStack('avatar', HZ.initials(cfg.a), [cfg.p, cfg.l].filter(Boolean)) +
+      '<h1 class="p-name">' + esc(cfg.a) + '</h1><p class="p-agency">' + esc(cfg.g) + '</p>' +
+      '<p class="p-intro">We couldn\u2019t load the properties right now. Please try again in a moment, or message your agent.</p>' +
+      '<p><button class="btn" type="button" onclick="location.reload()">Try again</button></p><small>' + esc(e.message) + '</small></div>';
+  });
+
+  window.addEventListener('hashchange', render);
+
+  app.addEventListener('click', function (e) {
+    var t = e.target.closest('button, a');
+    if (!t || !app.contains(t)) return;
+    if (t.hasAttribute('data-back')) { e.preventDefault(); go(t.getAttribute('data-back')); return; }
+    if (t.classList.contains('pcard') && t.dataset.id) { sel.id = t.dataset.id; sel.date = null; sel.time = null; go('#l/' + encodeURIComponent(t.dataset.id)); return; }
+    if (t.dataset.mine) { go('#pass/' + encodeURIComponent(t.dataset.mine)); return; }
+    if (t.classList.contains('day') && !t.disabled) { sel.date = t.dataset.date; sel.time = null; renderCalendar(); return; }
+    if (t.classList.contains('slot') && !t.disabled) { sel.time = t.dataset.time; renderCalendar(); return; }
+    if (t.id === 'toDetails') { if (sel.time) go('#d'); return; }
+    if (t.classList.contains('chip')) {
+      var q = t.closest('[data-q]').dataset.q; details[q] = t.dataset.v;
+      t.parentNode.querySelectorAll('.chip').forEach(function (c) { c.setAttribute('aria-pressed', c === t ? 'true' : 'false'); });
+      checkDetails(); return;
+    }
+    if (t.id === 'verify') { e.preventDefault(); verify(); return; }
+    if (t.id === 'ics') { downloadICS(t.dataset.key); return; }
+    if (t.id === 'cancel') {
+      if (!confirm('Cancel this viewing? The slot will be released.')) return;
+      var b = bookings(); delete b[t.dataset.key]; saveBookings(b); go(''); return;
+    }
+  });
+
+  function render() {
+    var h = decodeURIComponent(location.hash.slice(1));
+    if (h.indexOf('l/') === 0) {
+      var L = findListing(h.slice(2));
+      if (!L) return go('');
+      if (sel.id !== L.id) { sel = { id: L.id, date: null, time: null }; }
+      renderProperty(L);
+    } else if (h === 'd') {
+      var L2 = findListing(sel.id);
+      if (!L2 || !sel.time || !slotFree(sel.date, sel.time)) return go(L2 ? '#l/' + encodeURIComponent(L2.id) : '');
+      renderDetails(L2);
+    } else if (h.indexOf('pass/') === 0) {
+      var bk = bookings()[h.slice(5)];
+      if (!bk) return go('');
+      renderPass(bk);
+    } else {
+      renderProfile();
+    }
+    scrollTop();
+  }
+
+  function renderProfile() {
+    var mine = mineForAgent();
+    var mineHTML = mine.map(function (x) {
+      return '<button class="mine" type="button" data-mine="' + esc(x.key) + '"><span class="okmark" style="width:32px;height:32px;font-size:16px;background:var(--sea)">\u2713</span>' +
+        '<span style="flex:1;min-width:0"><b>Your viewing: ' + esc(x.building) + '</b><span>' + esc(HZ.fmtDateLong(x.date)) + ', ' + esc(HZ.fmtTime(x.time)) + ' \u00b7 View pass</span></span>' + HZ.chevron + '</button>';
+    }).join('');
+    app.innerHTML = '<div class="fade-in">' + HZ.profileHTML({ agent: cfg.a, agency: cfg.g, logo: cfg.l, photo: cfg.p, listings: listings })
+      .replace('<div class="cards">', mineHTML + '<div class="cards">') + '</div>';
+  }
+
+  /* ---------- availability ---------- */
+  function daySlots(dateKey) {
+    var out = [], cutoff = Date.now() + 60 * 60000;
+    for (var m = cfg.h[0] * 60; m + 30 <= cfg.h[1] * 60; m += 30) {
+      var time = HZ.pad(Math.floor(m / 60)) + ':' + HZ.pad(m % 60);
+      var st = 'free';
+      if (bookings()[slotKey(dateKey, time)]) st = 'booked';
+      else if (slotDate(dateKey, time).getTime() < cutoff) st = 'past';
+      else if (HZ.isBusy(cfg.a, dateKey, time)) st = 'busy';
+      out.push({ time: time, st: st });
+    }
+    return out;
+  }
+  function slotFree(d, t) { return daySlots(d).some(function (s) { return s.time === t && s.st === 'free'; }); }
+  function next14() {
+    var out = [], d = new Date(); d.setHours(0, 0, 0, 0);
+    for (var i = 0; i < 14; i++) { var x = new Date(d); x.setDate(d.getDate() + i); out.push(x); }
+    return out;
+  }
+
+  function renderProperty(L) {
+    var photos = L.photos.slice(0, 3);
+    var gallery = photos.length
+      ? photos.map(function (p) { return HZ.imgStack('tile', HZ.initials(HZ.buildingName(L)), [p]); }).join('')
+      : HZ.imgStack('tile', HZ.initials(HZ.buildingName(L)), []);
+    var facts = [
+      ['Price', HZ.fmtPrice(L)], ['Bedrooms', HZ.fmtBeds(L.beds)], ['Bathrooms', HZ.fmtBaths(L.baths)],
+      ['Size', HZ.fmtSize(L.size)], ['Furnishing', L.furnishing], ['Cheques', L.cheques]
+    ].filter(function (f) { return f[1]; }).map(function (f) {
+      return '<div class="fact"><span>' + esc(f[0]) + '</span><b>' + esc(f[1]).replace(/\//g, '<wbr>/') + '</b></div>';
+    }).join('');
+    app.innerHTML = '<div class="fade-in">' + backBtn('') +
+      '<div class="gallery" aria-label="Photos">' + gallery + '</div>' +
+      '<h1 class="prop-h">' + esc(HZ.buildingName(L)) + '</h1>' +
+      '<p class="prop-addr">' + esc(addr(L)) + '</p>' +
+      (facts ? '<div class="facts">' + facts + '</div>' : '') +
+      '<h2 class="sec-h">Choose a time</h2><p class="sec-sub">30-minute self-guided viewing. You\u2019ll check in at reception with your pass.</p>' +
+      '<div id="cal"></div>' +
+      '<div class="sticky"><button id="toDetails" class="btn btn-primary btn-block btn-lg" type="button" disabled>Continue</button></div></div>';
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    var cal = document.getElementById('cal'); if (!cal) return;
+    var days = next14().map(function (d) { var k = HZ.dateKey(d); return { d: d, k: k, free: daySlots(k).filter(function (s) { return s.st === 'free'; }).length }; });
+    if (!sel.date || !days.some(function (x) { return x.k === sel.date && x.free; })) {
+      var first = days.filter(function (x) { return x.free; })[0];
+      sel.date = first ? first.k : days[0].k; sel.time = null;
+    }
+    var strip = days.map(function (x, i) {
+      return '<button type="button" class="day" data-date="' + x.k + '" aria-pressed="' + (x.k === sel.date) + '"' + (x.free ? '' : ' disabled') +
+        ' aria-label="' + esc(HZ.fmtDateLong(x.k)) + ', ' + x.free + ' free">' +
+        '<span class="dw">' + (i === 0 ? 'Today' : HZ.DOW[x.d.getDay()]) + '</span><span class="dn">' + x.d.getDate() + '</span>' +
+        '<span class="df">' + (x.free ? x.free + ' free' : 'Full') + '</span></button>';
+    }).join('');
+    var slots = daySlots(sel.date).map(function (s) {
+      var lab = s.st === 'booked' ? '<small>Booked</small>' : '';
+      return '<button type="button" class="slot" data-time="' + s.time + '"' + (s.st === 'free' ? '' : ' disabled') +
+        ' aria-pressed="' + (s.time === sel.time) + '" aria-label="' + HZ.fmtTime(s.time) + (s.st === 'free' ? '' : s.st === 'booked' ? ', booked' : ', unavailable') + '">' +
+        HZ.fmtTime(s.time) + lab + '</button>';
+    }).join('');
+    var stripEl = cal.querySelector('.days'), sx = stripEl ? stripEl.scrollLeft : 0;
+    cal.innerHTML = '<div class="days" role="group" aria-label="Dates">' + strip + '</div>' +
+      '<p class="sec-sub" style="margin-bottom:8px"><b style="color:var(--ink)">' + esc(HZ.fmtDateLong(sel.date)) + '</b></p>' +
+      '<div class="slots" role="group" aria-label="Times">' + slots + '</div>';
+    cal.querySelector('.days').scrollLeft = sx;
+    var c = document.getElementById('toDetails');
+    if (c) { c.disabled = !sel.time; c.textContent = sel.time ? 'Continue with ' + HZ.fmtTime(sel.time) : 'Continue'; }
+  }
+
+  function renderDetails(L) {
+    function chips(q, opts) {
+      return '<fieldset class="q"><legend>' + q[1] + '</legend><div class="chips" data-q="' + q[0] + '">' + opts.map(function (o) {
+        return '<button type="button" class="chip" data-v="' + esc(o) + '" aria-pressed="' + (details[q[0]] === o) + '">' + esc(o) + '</button>';
+      }).join('') + '</div></fieldset>';
+    }
+    app.innerHTML = '<div class="fade-in">' + backBtn('#l/' + encodeURIComponent(L.id)) +
+      '<h1 class="prop-h" style="margin-bottom:14px">Your details</h1>' +
+      '<div class="card summary">' + HZ.imgStack('thumb', HZ.initials(HZ.buildingName(L)), L.photos.slice(0, 1)) +
+      '<div style="min-width:0"><b>' + esc(HZ.buildingName(L)) + '</b><span>' + esc(HZ.fmtDateLong(sel.date)) + ', ' + esc(HZ.fmtTime(sel.time)) + '</span><span>' + esc(HZ.cardSub(L)) + '</span></div></div>' +
+      '<form id="df" novalidate>' +
+      '<label class="field"><span>Full name</span><input id="fname" type="text" autocomplete="name" required value="' + esc(details.name) + '"></label>' +
+      '<label class="field"><span>Mobile</span><input id="fphone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+971 50 123 4567" required value="' + esc(details.phone) + '"></label>' +
+      chips(['movein', 'When do you want to move in?'], ['Within a month', '1-3 months', 'Just looking']) +
+      chips(['cheques', 'How many cheques would you prefer?'], ['1', '2', '4', '6+']) +
+      '<div class="sticky"><button id="verify" class="btn btn-uae btn-block btn-lg" type="submit" disabled>Verify with UAE PASS</button>' +
+      '<p class="uae-note">Demo only: the identity check is simulated. Nothing is sent.</p></div></form></div>';
+    var f = document.getElementById('df');
+    f.addEventListener('input', function () { details.name = f.fname.value; details.phone = f.fphone.value; checkDetails(); });
+    f.addEventListener('submit', function (e) { e.preventDefault(); verify(); });
+    checkDetails();
+  }
+  function checkDetails() {
+    var b = document.getElementById('verify'); if (!b) return;
+    var phoneOk = details.phone.replace(/[^0-9]/g, '').length >= 7;
+    b.disabled = !(details.name.trim().length >= 2 && phoneOk && details.movein && details.cheques);
+  }
+
+  var overlay = document.getElementById('overlay'), obox = document.getElementById('overlayBox');
+  function verify() {
+    var b = document.getElementById('verify'); if (!b || b.disabled) return;
+    var L = findListing(sel.id);
+    if (!slotFree(sel.date, sel.time)) { alert('Sorry, that time was just taken. Please pick another.'); return go('#l/' + encodeURIComponent(L.id)); }
+    overlay.hidden = false;
+    obox.innerHTML = '<div class="spinner"></div><p>Opening UAE PASS</p><small>Simulated for this demo</small>';
+    setTimeout(function () {
+      obox.innerHTML = '<div class="okmark">\u2713</div><p>Identity verified, creating your visitor pass</p>';
+      setTimeout(function () {
+        var key = slotKey(sel.date, sel.time), all = bookings();
+        all[key] = {
+          key: key, agent: cfg.a.trim(), agency: cfg.g, listingId: L.id, building: HZ.buildingName(L),
+          unit: L.unit, community: L.community, date: sel.date, time: sel.time,
+          first: HZ.firstName(details.name), created: Date.now()
+        };
+        saveBookings(all);
+        overlay.hidden = true;
+        go('#pass/' + encodeURIComponent(key));
+      }, 1000);
+    }, 1600);
+  }
+
+  function renderPass(bk) {
+    var where = [bk.unit ? 'Unit ' + bk.unit : '', bk.community].filter(Boolean).join(', ');
+    app.innerHTML = '<div class="fade-in">' + backBtn('', 'Properties') +
+      '<p class="done-line"><span class="dot">\u2713</span>Viewing booked. ' + esc(HZ.firstName(bk.agent)) + ' has been notified.</p>' +
+      '<article class="pass" aria-label="Visitor pass">' +
+        '<div class="pass-top"><div class="pass-head"><span class="wordmark">hayzel</span><small>Visitor pass</small></div>' +
+        '<div class="pass-b">' + esc(bk.building) + '</div><div class="pass-a">' + esc(where) + '</div>' +
+        '<div class="pass-grid"><div><span>Date</span><b>' + esc(HZ.fmtDateLong(bk.date)) + '</b></div>' +
+        '<div><span>Time</span><b>' + esc(HZ.fmtTime(bk.time)) + '</b></div>' +
+        '<div><span>Visitor</span><b>' + esc(bk.first) + '</b></div>' +
+        '<div><span>Where</span><b>Check in at Reception</b></div></div></div>' +
+        '<div class="perf"><i></i></div>' +
+        '<div class="pass-bot">' + HZ.qrLikeSVG(bk.key + '|' + bk.created, 104) +
+        '<p>Show this at reception. It works from 10 minutes before your slot.</p></div>' +
+      '</article>' +
+      '<div class="pass-actions">' +
+        '<a class="btn btn-primary btn-block btn-lg" href="whatsapp://">Back to WhatsApp</a>' +
+        '<button id="ics" class="btn btn-block" type="button" data-key="' + esc(bk.key) + '">Add to calendar</button>' +
+        '<button id="cancel" class="btn btn-block btn-danger-link" type="button" data-key="' + esc(bk.key) + '">Cancel this booking</button>' +
+      '</div>' +
+      '<footer class="b-foot"><span>Self-viewing by <b class="wordmark">hayzel</b></span><small>Demo only</small></footer></div>';
+  }
+
+  function icsDate(d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+  function icsText(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1'); }
+  function downloadICS(key) {
+    var bk = bookings()[key]; if (!bk) return;
+    var start = slotDate(bk.date, bk.time), end = new Date(start.getTime() + 30 * 60000);
+    var lines = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//hayzel//demo//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      'BEGIN:VEVENT', 'UID:' + HZ.fnv(key + bk.created) + '@hayzel-demo', 'DTSTAMP:' + icsDate(new Date()),
+      'DTSTART:' + icsDate(start), 'DTEND:' + icsDate(end),
+      'SUMMARY:' + icsText('Self-guided viewing: ' + bk.building),
+      'LOCATION:' + icsText([bk.building, bk.unit ? 'Unit ' + bk.unit : '', bk.community, 'Dubai'].filter(Boolean).join(', ')),
+      'DESCRIPTION:' + icsText('Check in at Reception with your visitor pass. It works from 10 minutes before your slot. Agent: ' + bk.agent + '. (Demo booking)'),
+      'BEGIN:VALARM', 'TRIGGER:-PT30M', 'ACTION:DISPLAY', 'DESCRIPTION:Viewing in 30 minutes', 'END:VALARM',
+      'END:VEVENT', 'END:VCALENDAR'
+    ];
+    var blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/calendar;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'viewing-' + HZ.slug(bk.building) + '.ics';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  }
+})();
+</script>
+</body>
+</html>

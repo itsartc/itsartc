@@ -1,0 +1,19 @@
+{
+  "cleanUrls": false,
+  "redirects": [
+    { "source": "/", "destination": "/setup", "permanent": false }
+  ],
+  "rewrites": [
+    { "source": "/setup", "destination": "/setup.html" },
+    { "source": "/b/:slug", "destination": "/b.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}

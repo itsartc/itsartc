@@ -1,0 +1,6 @@
+{
+  "name": "hayzel-onboarding-demo",
+  "private": true,
+  "description": "Hayzel onboarding demo: standalone static pages plus one serverless CSV proxy.",
+  "scripts": { "test": "node test/unit.js" }
+}

@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Set up self-viewing · hayzel demo</title>
+<meta name="description" content="Hayzel onboarding demo: connect your listings and calendar, and get a personal self-viewing booking link.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#EEF2F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1B1E" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="Hayzel onboarding demo">
+<meta property="og:description" content="Set up self-guided viewings and get your personal booking link.">
+<meta property="og:image" content="https://hayzel-demo.vercel.app/og-book.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/assets/hz.css">
+</head>
+<body>
+<header class="s-top" id="top">
+  <div class="brand"><b class="wordmark">hayzel</b><small>Self-viewing setup · Demo</small></div>
+  <button class="link-btn" type="button" id="startOver" hidden>Start over</button>
+</header>
+<div class="s-wrap" id="wrap">
+  <main class="s-main">
+    <nav aria-label="Setup progress"><ol class="stepper" id="stepper"></ol></nav>
+    <section class="panel" id="panel" aria-live="polite"></section>
+  </main>
+  <aside class="s-aside" aria-label="Live preview of the buyer page">
+    <div class="phone"><div class="phone-screen"><div class="b-page" id="preview"></div></div></div>
+    <p class="cap">Live preview: what buyers see when they tap your link.</p>
+  </aside>
+</div>
+<div id="overlay" class="overlay" hidden role="status" aria-live="assertive"><div class="overlay-box" id="overlayBox"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
+<script src="/assets/hz.js"></script>
+<script>
+(function () {
+  'use strict';
+  var esc = HZ.esc, KEY = 'hz_setup';
+  var STEPS = ['Agency', 'Listings', 'Calendar', 'Agent', 'Your link'];
+  var CRMS = ['PropSpace', 'Pixxi', 'Bitrix24', 'Salesforce', 'Zoho CRM', 'Other'];
+  var params = new URLSearchParams(location.search);
+
+  /* ================= mobile handoff view ================= */
+  if (params.get('handoff')) { renderHandoff(params.get('handoff')); return; }
+
+  var DEF = {
+    step: 0, max: 0,
+    agency: { name: '', email: '', logo: '' },
+    mode: 'sheets', sheetUrl: '', crm: 'PropSpace', endpoint: '',
+    kind: null, // 'sheets' | 'sample' | 'api'
+    listings: [],
+    cal: { provider: null, from: 10, until: 19 },
+    agent: '', photo: '', message: null
+  };
+  var S = Object.assign({}, DEF, HZ.store.get(KEY, {}) || {});
+  S.agency = Object.assign({}, DEF.agency, S.agency || {});
+  S.cal = Object.assign({}, DEF.cal, S.cal || {});
+  if (!Array.isArray(S.listings)) S.listings = [];
+  var busy = false, loadErr = '';
+
+  var panel = document.getElementById('panel'), stepper = document.getElementById('stepper'), preview = document.getElementById('preview');
+  var overlay = document.getElementById('overlay'), obox = document.getElementById('overlayBox');
+  var startOver = document.getElementById('startOver');
+
+  function save() { HZ.store.set(KEY, S); startOver.hidden = !(S.max > 0 || S.agency.name); }
+  function canEnter(i) {
+    if (i <= 0) return true;
+    if (!stepValid(0)) return false;
+    if (i >= 2 && !stepValid(1)) return false;
+    if (i >= 3 && !stepValid(2)) return false;
+    if (i >= 4 && !stepValid(3)) return false;
+    return true;
+  }
+  function stepValid(i) {
+    if (i === 0) return S.agency.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.agency.email.trim());
+    if (i === 1) return S.kind && HZ.agents(S.listings).length > 0;
+    if (i === 2) return !!S.cal.provider && +S.cal.until > +S.cal.from;
+    if (i === 3) return HZ.agents(S.listings).some(function (a) { return a.name === S.agent; });
+    return true;
+  }
+  function goStep(i) {
+    if (!canEnter(i)) return;
+    S.step = i; if (i > S.max) S.max = i; save(); render();
+    var t = document.getElementById('top'); if (t && window.scrollY > 80) t.scrollIntoView({ behavior: 'smooth' });
+    var h = panel.querySelector('h2'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  }
+
+  function showOverlay(html) { obox.innerHTML = html; overlay.hidden = false; }
+  function hideOverlay() { overlay.hidden = true; }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /* ================= stepper ================= */
+  function renderStepper() {
+    stepper.innerHTML = STEPS.map(function (s, i) {
+      var cls = i === S.step ? 'cur' : (i <= S.max && canEnter(i) ? 'done' : '');
+      var clickable = cls === 'done';
+      return '<li class="' + cls + '"><button type="button" data-step="' + i + '"' + (clickable ? '' : ' tabindex="-1" aria-disabled="true"') +
+        (i === S.step ? ' aria-current="step"' : '') + '><span class="bar"></span><span class="lbl"><span class="num">' + (i < S.step && cls === 'done' ? '✓' : i + 1) + '</span><span class="txt">' + s + '</span></span></button></li>';
+    }).join('');
+  }
+  stepper.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-step]'); if (!b) return;
+    var i = +b.dataset.step;
+    if (b.closest('li').classList.contains('done')) goStep(i);
+  });
+
+  /* ================= preview ================= */
+  function previewAgent() {
+    var ag = HZ.agents(S.listings);
+    if (S.agent && ag.some(function (a) { return a.name === S.agent; })) return S.agent;
+    return ag.length ? ag[0].name : '';
+  }
+  function renderPreview() {
+    var data = S.listings.length ? S.listings : HZ.sampleListings();
+    var agent = previewAgent() || HZ.agents(data)[0].name;
+    preview.innerHTML = HZ.profileHTML({
+      agent: S.step >= 3 || S.agent ? agent : (S.listings.length ? agent : 'Your name'),
+      agency: S.agency.name || 'Your agency', logo: S.agency.logo, photo: S.photo,
+      listings: HZ.agentListings(data, agent), preview: true
+    });
+  }
+
+  /* ================= panels ================= */
+  function actions(nextLabel, valid, backTo) {
+    return '<div class="panel-actions">' +
+      (backTo != null ? '<button class="btn" type="button" data-go="' + backTo + '">Back</button>' : '<span></span>') +
+      (nextLabel ? '<button class="btn btn-primary" type="button" id="next"' + (valid ? '' : ' disabled') + '>' + nextLabel + '</button>' : '') + '</div>';
+  }
+  function refreshNext() { var n = document.getElementById('next'); if (n) n.disabled = !stepValid(S.step); }
+
+  function render() {
+    renderStepper();
+    var f = [pAgency, pListings, pCalendar, pAgent, pLink][S.step];
+    panel.innerHTML = '<div class="fade-in">' + f() + '</div>';
+    (afterRender[S.step] || function () {})();
+    renderPreview();
+    save();
+  }
+  var afterRender = {};
+
+  /* ---- 1. Agency ---- */
+  function pAgency() {
+    return '<h2>Tell us about your agency</h2><p class="lead">This shows on every buyer’s booking page.</p>' +
+      '<label class="field"><span>Agency name</span><input id="ag_name" type="text" autocomplete="organization" value="' + esc(S.agency.name) + '" placeholder="e.g. Palm Key Properties"></label>' +
+      '<label class="field"><span>Work email</span><input id="ag_email" type="email" autocomplete="email" value="' + esc(S.agency.email) + '" placeholder="you@agency.ae"><span class="err" id="emailErr" hidden>Enter a valid work email.</span></label>' +
+      '<label class="field"><span>Agency logo image link <span class="hint">(optional)</span></span><input id="ag_logo" type="url" inputmode="url" value="' + esc(S.agency.logo) + '" placeholder="https://…/logo.png"></label>' +
+      '<div class="logo-prev" id="logoPrev"></div>' +
+      actions('Continue', stepValid(0), null);
+  }
+  afterRender[0] = function () {
+    var n = document.getElementById('ag_name'), em = document.getElementById('ag_email'), lg = document.getElementById('ag_logo');
+    function upd() {
+      S.agency.name = n.value; S.agency.email = em.value; S.agency.logo = lg.value.trim();
+      refreshNext(); renderPreview(); renderStepper(); save();
+    }
+    [n, em, lg].forEach(function (el) { el.addEventListener('input', upd); });
+    em.addEventListener('blur', function () { document.getElementById('emailErr').hidden = !em.value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim()); });
+    lg.addEventListener('input', function () { logoPreview('logoPrev', lg.value.trim(), false); });
+    logoPreview('logoPrev', S.agency.logo, false);
+  };
+  function logoPreview(id, url, round) {
+    var el = document.getElementById(id); if (!el) return;
+    if (!url) { el.innerHTML = ''; return; }
+    if (!HZ.isHttp(url)) { el.innerHTML = '<span class="err">Use a full image link starting with https://</span>'; return; }
+    el.innerHTML = '<img src="' + esc(url) + '" alt="" class="' + (round ? 'round' : '') + '"><span>Preview</span>';
+    var img = el.querySelector('img');
+    img.onerror = function () { el.innerHTML = '<span class="err">We couldn’t load that image. Buyers will see initials instead.</span>'; };
+  }
+
+  /* ---- 2. Listings ---- */
+  function pListings() {
+    var sheets = S.mode === 'sheets';
+    var h = '<h2>Connect your listings</h2><p class="lead">We only show listings that are open for self-viewing.</p>' +
+      '<div class="seg" role="group" aria-label="Listings source"><button type="button" data-mode="sheets" aria-pressed="' + sheets + '">Google Sheets</button>' +
+      '<button type="button" data-mode="api" aria-pressed="' + !sheets + '">Other CRM (API)</button></div>';
+    if (sheets) {
+      h += '<ol class="howto"><li>In Google Sheets, open <b>File</b>, then <b>Share</b>, then <b>Publish to web</b>.</li>' +
+        '<li>Choose the tab with your listings.</li><li>Pick <b>Comma-separated values (.csv)</b> and click <b>Publish</b>.</li><li>Copy the link and paste it below.</li></ol>' +
+        '<label class="field"><span>Published CSV link</span><input id="sheetUrl" type="url" inputmode="url" value="' + esc(S.sheetUrl) + '" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?gid=0&single=true&output=csv"></label>' +
+        '<div class="btn-row"><button class="btn btn-sea" type="button" id="loadSheet">Load listings</button>' +
+        '<button class="link-btn" type="button" id="useSample">Use sample listings instead</button></div>' +
+        '<p class="muted" style="font-size:13px;margin-top:10px">Photo columns (photo_1, photo_2, photo_3) need plain image links. Cells using =IMAGE() export as blank.</p>';
+    } else {
+      h += '<label class="field"><span>Your CRM</span><select id="crm">' + CRMS.map(function (c) { return '<option' + (c === S.crm ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label>' +
+        '<label class="field"><span>Endpoint URL</span><input id="endpoint" type="url" inputmode="url" value="' + esc(S.endpoint) + '" placeholder="https://api.yourcrm.com/v1/listings"></label>' +
+        '<label class="field"><span>API key</span><input id="apikey" type="password" autocomplete="off" placeholder="Paste your API key"></label>' +
+        '<div class="btn-row"><button class="btn btn-sea" type="button" id="testApi">Test connection</button><span class="tag-sim">Simulated in this demo</span></div>' +
+        '<p class="muted" style="font-size:13px;margin-top:10px">The key is never stored or sent anywhere in this demo.</p>';
+    }
+    h += '<div id="result" class="result">' + resultCard() + '</div>';
+    return h + actions('Continue', stepValid(1), 0);
+  }
+  function resultCard() {
+    if (loadErr) return '<div class="card" style="border-color:var(--danger)"><b style="color:var(--danger)">Couldn’t load listings</b><p style="margin:6px 0 0">' + esc(loadErr) + '</p></div>';
+    if (!S.kind || !S.listings.length) return '';
+    var st = HZ.stats(S.listings), label = S.kind === 'sheets' ? 'Loaded from Google Sheets' : S.kind === 'api' ? 'Connected to ' + esc(S.crm) + ' <span class="tag-sim">Simulated: showing sample data</span>' : 'Using sample listings';
+    var rows = S.listings.slice(0, 3).map(function (L) {
+      return '<div class="prow">' + HZ.imgStack('thumb', HZ.initials(HZ.buildingName(L)), L.photos.slice(0, 1)) +
+        '<div><b>' + esc(HZ.buildingName(L)) + '</b><span>' + esc([HZ.cardSub(L), HZ.fmtPrice(L), L.agent].filter(Boolean).join(' · ')) + '</span></div></div>';
+    }).join('');
+    var warn = st.agents ? '' : '<p class="err">No agent names found. Add an "agent_name" column to your sheet.</p>';
+    return '<div class="card"><p style="font-weight:600;margin-bottom:12px">✓ ' + label + '</p>' +
+      '<div class="statgrid"><div class="stat"><b>' + st.listings + '</b><span>listings</span></div><div class="stat"><b>' + st.agents + '</b><span>agents</span></div>' +
+      '<div class="stat"><b>' + st.self + '</b><span>open for self-viewing</span></div><div class="stat"><b>' + st.noPhotos + '</b><span>without photos</span></div></div>' +
+      rows + warn + '</div>';
+  }
+  afterRender[1] = function () {
+    panel.querySelectorAll('[data-mode]').forEach(function (b) {
+      b.addEventListener('click', function () { S.mode = b.dataset.mode; loadErr = ''; render(); });
+    });
+    var su = document.getElementById('sheetUrl');
+    if (su) {
+      su.addEventListener('input', function () { S.sheetUrl = su.value.trim(); save(); });
+      su.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); loadSheet(); } });
+      document.getElementById('loadSheet').addEventListener('click', loadSheet);
+      document.getElementById('useSample').addEventListener('click', function () {
+        loadErr = ''; S.kind = 'sample'; S.listings = HZ.sampleListings(); afterLoad();
+      });
+    }
+    var crm = document.getElementById('crm');
+    if (crm) {
+      crm.addEventListener('change', function () { S.crm = crm.value; save(); });
+      var ep = document.getElementById('endpoint');
+      ep.addEventListener('input', function () { S.endpoint = ep.value.trim(); save(); });
+      document.getElementById('testApi').addEventListener('click', function () {
+        if (busy) return; busy = true; loadErr = '';
+        document.getElementById('apikey').value = ''; // never kept
+        showOverlay('<div class="spinner"></div><p>Testing connection to ' + esc(S.crm) + '</p><small>Simulated for this demo</small>');
+        wait(1400).then(function () {
+          hideOverlay(); busy = false; S.kind = 'api'; S.listings = HZ.sampleListings(); afterLoad();
+        });
+      });
+    }
+  };
+  function loadSheet() {
+    if (busy) return;
+    var url = (document.getElementById('sheetUrl').value || '').trim();
+    S.sheetUrl = url;
+    if (!url) { loadErr = 'Paste your published CSV link first.'; return paintResult(); }
+    if (!/^https:\/\/docs\.google\.com\/spreadsheets\//i.test(url)) { loadErr = 'That isn’t a Google Sheets link. It should start with https://docs.google.com/spreadsheets/'; return paintResult(); }
+    var btn = document.getElementById('loadSheet'); busy = true; btn.disabled = true; btn.textContent = 'Loading…';
+    HZ.fetchSheet(url).then(function (list) {
+      loadErr = list.length ? '' : 'The sheet loaded, but no listing rows were found. Check the tab you published.';
+      if (list.length) { S.kind = 'sheets'; S.listings = list; }
+    }, function (e) { loadErr = e.message; }).then(function () {
+      busy = false; afterLoad();
+    });
+  }
+  function afterLoad() {
+    if (S.agent && !HZ.agents(S.listings).some(function (a) { return a.name === S.agent; })) S.agent = '';
+    save(); render();
+  }
+  function paintResult() { document.getElementById('result').innerHTML = resultCard(); refreshNext(); }
+
+  /* ---- 3. Calendar ---- */
+  var calIcon = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  function pCalendar() {
+    function btn(id, name) {
+      var on = S.cal.provider === name;
+      return '<button type="button" class="cal-btn' + (on ? ' is-on' : '') + '" data-cal="' + name + '" aria-pressed="' + on + '"><span class="ic">' + calIcon + '</span><span>' + name +
+        '<small>' + (on ? '✓ Connected (simulated)' : 'Connect') + '</small></span></button>';
+    }
+    function opts(sel) { var o = ''; for (var h = 7; h <= 22; h++) o += '<option value="' + h + '"' + (h === +sel ? ' selected' : '') + '>' + HZ.pad(h) + ':00</option>'; return o; }
+    return '<h2>Connect your calendar</h2><p class="lead">Buyers only see times when you’re free. Bookings are added to your calendar.</p>' +
+      '<div class="cal-btns">' + btn('g', 'Google Calendar') + btn('o', 'Outlook') + '</div>' +
+      '<p class="note" style="margin-bottom:20px">Demo: connecting is simulated. No account is accessed.</p>' +
+      '<div class="row2"><label class="field"><span>Viewing hours from</span><select id="hFrom">' + opts(S.cal.from) + '</select></label>' +
+      '<label class="field"><span>Until</span><select id="hUntil">' + opts(S.cal.until) + '</select></label></div>' +
+      '<p class="err" id="hErr"' + (+S.cal.until > +S.cal.from ? ' hidden' : '') + '>“Until” must be later than “from”.</p>' +
+      actions('Continue', stepValid(2), 1);
+  }
+  afterRender[2] = function () {
+    panel.querySelectorAll('[data-cal]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (busy) return; busy = true; var name = b.dataset.cal;
+        showOverlay('<div class="spinner"></div><p>Connecting to ' + esc(name) + '</p><small>Simulated for this demo</small>');
+        wait(1200).then(function () { hideOverlay(); busy = false; S.cal.provider = name; save(); render(); });
+      });
+    });
+    var f = document.getElementById('hFrom'), u = document.getElementById('hUntil');
+    function upd() { S.cal.from = +f.value; S.cal.until = +u.value; document.getElementById('hErr').hidden = S.cal.until > S.cal.from; refreshNext(); renderStepper(); save(); }
+    f.addEventListener('change', upd); u.addEventListener('change', upd);
+  };
+
+  /* ---- 4. Agent ---- */
+  function pAgent() {
+    var ag = HZ.agents(S.listings);
+    return '<h2>Who are you?</h2><p class="lead">Pick your name. Your link will show only your listings.</p>' +
+      '<div class="agents" role="radiogroup" aria-label="Agents">' + ag.map(function (a) {
+        var on = a.name === S.agent;
+        return '<button type="button" class="agent-opt" role="radio" aria-checked="' + on + '" data-agent="' + esc(a.name) + '"><span class="ava">' + esc(HZ.initials(a.name)) + '</span>' +
+          '<span><b>' + esc(a.name) + '</b><small>' + a.self + ' listing' + (a.self === 1 ? '' : 's') + ' open for self-viewing</small></span><span class="radio"></span></button>';
+      }).join('') + '</div>' +
+      '<label class="field"><span>Your photo link <span class="hint">(optional)</span></span><input id="photo" type="url" inputmode="url" value="' + esc(S.photo) + '" placeholder="https://…/me.jpg"></label>' +
+      '<div class="logo-prev" id="photoPrev"></div>' +
+      actions('Get my link', stepValid(3), 2);
+  }
+  afterRender[3] = function () {
+    panel.querySelectorAll('[data-agent]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        S.agent = b.dataset.agent;
+        panel.querySelectorAll('[data-agent]').forEach(function (x) { x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
+        refreshNext(); renderPreview(); renderStepper(); save();
+      });
+    });
+    var p = document.getElementById('photo');
+    p.addEventListener('input', function () { S.photo = p.value.trim(); logoPreview('photoPrev', S.photo, true); renderPreview(); save(); });
+    logoPreview('photoPrev', S.photo, true);
+  };
+
+  /* ---- 5. Your link ---- */
+  function currentCfg() {
+    var c = { v: 1, s: S.kind === 'sheets' ? HZ.compressSource(S.sheetUrl) : 'sample', a: S.agent, g: S.agency.name.trim(), h: [+S.cal.from, +S.cal.until] };
+    if (HZ.isHttp(S.agency.logo)) c.l = S.agency.logo;
+    if (HZ.isHttp(S.photo)) c.p = S.photo;
+    return c;
+  }
+  function currentLink() { return HZ.buildLink(location.origin, currentCfg()); }
+  function currentMessage(link) {
+    if (S.message == null) return HZ.defaultMessage(link);
+    return S.message.replace(/https?:\/\/\S*\/b\/[^\s]*/g, link);
+  }
+  function handoffUrl(cfgEnc, msg, link) {
+    var o = { c: cfgEnc };
+    if (msg !== HZ.defaultMessage(link)) o.m = msg;
+    return location.origin + '/setup?handoff=' + HZ.b64urlEncode(JSON.stringify(o));
+  }
+  function pLink() {
+    var link = currentLink(), msg = currentMessage(link);
+    return '<h2>Your booking link is ready</h2><p class="lead">Send it to buyers who ask about a property. They pick a listing and a time, and get a visitor pass.</p>' +
+      '<label class="field"><span>Your personal link</span><div class="linkbox"><input id="link" type="text" readonly value="' + esc(link) + '" aria-label="Your booking link">' +
+      '<button class="btn btn-primary" type="button" id="copyLink">Copy</button></div></label>' +
+      '<div class="sec"><h3>Save it as a WhatsApp Business quick reply</h3><p class="muted">Then you can send it in any chat by typing <b>/view</b>.</p>' +
+      '<label class="field"><span>Quick reply message</span><textarea id="msg" rows="4">' + esc(msg) + '</textarea></label>' +
+      '<div class="btn-row"><button class="btn btn-primary" type="button" id="copyMsg">Copy message</button>' +
+      '<a class="btn" id="waSelf" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(msg) + '">Send it to yourself on WhatsApp</a></div></div>' +
+      '<div class="sec only-desktop"><div class="card handoff-card"><div class="qr" id="qr" aria-label="QR code to open this on your phone"></div>' +
+      '<div><h3>Move it to your phone</h3><p>Scan with your phone to copy your message and save it as a quick reply.</p><p class="muted" style="font-size:13px;margin:0">Quick replies live on your phone, so this is the easiest way to get the message there.</p></div></div></div>' +
+      '<div class="sec"><h3>How to add the quick reply</h3><div id="guide">' + HZ.guideHTML(msg) + '</div></div>' +
+      '<div class="sec btn-row"><a class="btn btn-sea" id="seeBuyer" href="' + esc(link) + '" target="_blank" rel="noopener">See what buyers see</a>' +
+      '<button class="btn" type="button" id="startOver2">Start over</button></div>' +
+      '<div class="panel-actions"><button class="btn" type="button" data-go="3">Back</button><span></span></div>';
+  }
+  afterRender[4] = function () {
+    var link = currentLink(), cfgEnc = HZ.encodeConfig(currentCfg());
+    var m = document.getElementById('msg');
+    function paint() {
+      var msg = m.value;
+      document.getElementById('waSelf').href = 'https://wa.me/?text=' + encodeURIComponent(msg);
+      document.getElementById('guide').innerHTML = HZ.guideHTML(msg);
+      drawQR(handoffUrl(cfgEnc, msg, link));
+    }
+    m.addEventListener('input', function () { S.message = m.value === HZ.defaultMessage(link) ? null : m.value; save(); clearTimeout(m._t); m._t = setTimeout(paint, 250); });
+    document.getElementById('copyLink').addEventListener('click', function () { var b = this; HZ.copy(link).then(function () { HZ.flash(b); }, function () { document.getElementById('link').select(); }); });
+    document.getElementById('copyMsg').addEventListener('click', function () { var b = this; HZ.copy(m.value).then(function () { HZ.flash(b); }, function () { m.select(); }); });
+    document.getElementById('link').addEventListener('focus', function () { this.select(); });
+    document.getElementById('startOver2').addEventListener('click', doStartOver);
+    drawQR(handoffUrl(cfgEnc, m.value, link));
+  };
+  function drawQR(url) {
+    var el = document.getElementById('qr'); if (!el) return;
+    el.setAttribute('data-url', url);
+    if (typeof qrcode !== 'function') { el.innerHTML = '<p style="font-size:12px;color:#15282C;word-break:break-all;margin:0">QR unavailable. Open this on your phone: ' + esc(url) + '</p>'; return; }
+    try {
+      var q = qrcode(0, 'L'); q.addData(url); q.make();
+      el.innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+    } catch (e) { el.innerHTML = '<p style="font-size:12px;color:#15282C">Message too long for a QR code. Shorten it a little.</p>'; }
+  }
+
+  function doStartOver() {
+    if (!confirm('Start over? This clears everything you’ve entered on this device.')) return;
+    HZ.store.del(KEY); location.href = '/setup';
+  }
+  startOver.addEventListener('click', doStartOver);
+
+  panel.addEventListener('click', function (e) {
+    var g = e.target.closest('[data-go]'); if (g) { goStep(+g.dataset.go); return; }
+    if (e.target.closest('#next')) { if (stepValid(S.step)) goStep(S.step + 1); }
+  });
+  panel.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.matches('#panel input:not(#sheetUrl)') && stepValid(S.step) && S.step < 4) { e.preventDefault(); goStep(S.step + 1); }
+  });
+
+  // Resume where the user left off, but never past an invalid step.
+  while (S.step > 0 && !canEnter(S.step)) S.step--;
+  render();
+
+  /* ================= handoff renderer ================= */
+  function renderHandoff(token) {
+    document.getElementById('wrap').remove();
+    document.getElementById('startOver').remove();
+    var data = null, cfg = null;
+    try { data = JSON.parse(HZ.b64urlDecode(token)); cfg = HZ.decodeConfig(data.c); } catch (e) { cfg = null; }
+    var main = document.createElement('main'); main.className = 'handoff';
+    document.body.insertBefore(main, document.getElementById('overlay'));
+    if (!cfg) {
+      main.innerHTML = '<h1 class="hello">This link isn’t complete.</h1><p>Scan the QR code on your computer again.</p>';
+      return;
+    }
+    var link = location.origin + '/b/' + HZ.slug(cfg.a) + '?c=' + data.c;
+    var msg = typeof data.m === 'string' && data.m ? data.m : HZ.defaultMessage(link);
+    main.innerHTML = '<p class="muted" style="margin:0">Hi ' + esc(HZ.firstName(cfg.a)) + ',</p>' +
+      '<h1 class="hello">Save your booking link as a quick reply</h1>' +
+      '<p class="muted">' + esc(cfg.a) + (cfg.g ? ' · ' + esc(cfg.g) : '') + '</p>' +
+      '<div class="msgprev" id="hmsg">' + esc(msg) + '</div>' +
+      '<button class="btn btn-primary btn-block btn-lg" type="button" id="hCopy">Copy message</button>' +
+      '<a class="btn btn-sea btn-block btn-lg" href="https://wa.me/?text=' + encodeURIComponent(msg) + '">Open in WhatsApp</a>' +
+      '<p class="muted" style="font-size:13px;text-align:center">Tip: send it to yourself, then long-press to copy it into a quick reply.</p>' +
+      '<h2 style="font-size:18px;margin-top:24px">Then, in WhatsApp Business</h2>' + HZ.guideHTML(msg) +
+      '<p style="margin-top:20px"><a class="btn btn-block" href="' + esc(link) + '">Preview your booking page</a></p>' +
+      '<p class="muted" style="text-align:center;font-size:12px;margin-top:20px">Self-viewing by <b class="wordmark">hayzel</b> · Demo only</p>';
+    document.getElementById('hCopy').addEventListener('click', function () { var b = this; HZ.copy(msg).then(function () { HZ.flash(b, 'Copied. Now open WhatsApp'); }, function () { HZ.flash(b, 'Long-press the message above to copy'); }); });
+  }
+})();
+</script>
+</body>
+</html>
