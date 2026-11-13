@@ -132,6 +132,7 @@
   function refreshNext() { var n = document.getElementById('next'); if (n) n.disabled = !stepValid(S.step); }
 
   function render() {
+    document.body.classList.toggle('is-welcome', S.step === 0);
     renderStepper();
     var f = [pAgency, pListings, pCalendar, pAgent, pLink][S.step];
     panel.innerHTML = '<div class="fade-in">' + f() + '</div>';
@@ -143,12 +144,16 @@
 
   /* ---- 1. Agency ---- */
   function pAgency() {
-    return '<h2>Tell us about your agency</h2><p class="lead">This shows on every buyer’s booking page.</p>' +
-      '<label class="field"><span>Agency name</span><input id="ag_name" type="text" autocomplete="organization" value="' + esc(S.agency.name) + '" placeholder="e.g. Palm Key Properties"></label>' +
-      '<label class="field"><span>Work email</span><input id="ag_email" type="email" autocomplete="email" value="' + esc(S.agency.email) + '" placeholder="you@agency.ae"><span class="err" id="emailErr" hidden>Enter a valid work email.</span></label>' +
-      '<label class="field"><span>Agency logo image link <span class="hint">(optional)</span></span><input id="ag_logo" type="url" inputmode="url" value="' + esc(S.agency.logo) + '" placeholder="https://…/logo.png"></label>' +
+    return '<div class="w-card"><div class="w-form"><div class="w-inner">' +
+      '<div class="w-brand"><b class="wordmark">hayzel</b></div>' +
+      '<h2>Welcome to hayzel</h2><p class="lead">Set up self-guided viewings for your agency. It takes about 3 minutes.</p>' +
+      '<label class="field"><span>Agency name</span><input id="ag_name" type="text" autocomplete="organization" value="' + esc(S.agency.name) + '" placeholder="Enter your agency name"></label>' +
+      '<label class="field"><span>Work email</span><input id="ag_email" type="email" autocomplete="email" value="' + esc(S.agency.email) + '" placeholder="Enter your work email"><span class="err" id="emailErr" hidden>Enter a valid work email.</span></label>' +
+      '<label class="field"><span>Agency logo link <span class="hint">(optional)</span></span><input id="ag_logo" type="url" inputmode="url" value="' + esc(S.agency.logo) + '" placeholder="https://\u2026/logo.png"></label>' +
       '<div class="logo-prev" id="logoPrev"></div>' +
-      actions('Continue', stepValid(0), null);
+      '<button class="btn btn-primary btn-block w-cta" type="button" id="next"' + (stepValid(0) ? '' : ' disabled') + '>Get started</button>' +
+      '<p class="w-foot">Step 1 of 5 \u00b7 Demo only. Nothing leaves this browser.</p>' +
+      '</div></div><div class="w-art" aria-hidden="true"><img src="/img/welcome.jpg" alt=""></div></div>';
   }
   afterRender[0] = function () {
     var n = document.getElementById('ag_name'), em = document.getElementById('ag_email'), lg = document.getElementById('ag_logo');
